@@ -5,7 +5,23 @@
 
 const MemoryInfo::Usage& MemoryInfo::GetUsage() const { return info; }
 
-template <size_t S, size_t N, size_t A> void* MemoryPool<S, N, A>::New() {
+template <size_t S, size_t N, size_t A>
+template<typename T, typename... Args>
+T* MemoryPool<S, N, A>::New(Args&&... args) {
+    T* ptr = static_cast<T*>(Malloc());
+    new(ptr) T(std::forward<Args>(args)...);
+    return ptr;
+}
+
+template <size_t S, size_t N, size_t A>
+template<typename T>
+void MemoryPool<S, N, A>::Delete(T* ptr) {
+    ptr->~T();
+    Free(ptr);
+}
+
+
+template <size_t S, size_t N, size_t A> void* MemoryPool<S, N, A>::Malloc() {
     if (top == nullptr) {
         if (freeable.empty()) {
             if (Expand() == false) {
@@ -52,7 +68,7 @@ template <size_t S, size_t N, size_t A> void* MemoryPool<S, N, A>::New() {
     return ret;
 }
 
-template <size_t S, size_t N, size_t A> void MemoryPool<S, N, A>::Delete(void* p) {
+template <size_t S, size_t N, size_t A> void MemoryPool<S, N, A>::Free(void* p) {
     Chunk*   ptr   = static_cast<Chunk*>(p);
     Segment* block = ptr->block;
 
@@ -183,36 +199,26 @@ Allocator<T, N, A, Mtx>::PoolType Allocator<T, N, A, Mtx>::pool;
 template <typename T, size_t N, size_t A, class Mtx>
 T* Allocator<T, N, A, Mtx>::allocate(size_t unused) {
     TypeLock<PoolType, Mtx> lock;
-    return reinterpret_cast<T*>(pool.New());
+    return pool.New<T>();
 }
 
 template <typename T, size_t N, size_t A, class Mtx>
 void Allocator<T, N, A, Mtx>::deallocate(T* p, size_t unused) {
     TypeLock<PoolType, Mtx> lock;
-    pool.Delete(reinterpret_cast<void*>(p));
-}
-
-template <typename T, size_t N, size_t A, class Mtx> T* Allocator<T, N, A, Mtx>::New() {
-    TypeLock<PoolType, Mtx> lock;
-    return static_cast<T*>(pool.New());
-}
-
-template <typename T, size_t N, size_t A, class Mtx> void Allocator<T, N, A, Mtx>::Delete(void* p) {
-    TypeLock<PoolType, Mtx> lock;
-    pool.Delete(p);
+    pool.Delete<T>(p);
 }
 
 template <typename T, size_t N, size_t A, class Mtx>
-template <typename U> U* Allocator<T, N, A, Mtx>::New() {
+template <typename... Args>T* Allocator<T, N, A, Mtx>::New(Args&&... args) {
     TypeLock<PoolType, Mtx> lock;
-    return reinterpret_cast<U*>(pool.New());
+    return pool.New<T>(args...);
 }
 
-template <typename T, size_t N, size_t A, class Mtx>
-template <typename U> void Allocator<T, N, A, Mtx>::Delete(U* p) {
+template <typename T, size_t N, size_t A, class Mtx> void Allocator<T, N, A, Mtx>::Delete(T* p) {
     TypeLock<PoolType, Mtx> lock;
-    pool.Delete(reinterpret_cast<void*>(p));
+    pool.Delete<T>(p);
 }
+
 
 template <typename T, size_t N, size_t A, class Mtx> bool Allocator<T, N, A, Mtx>::Expand() {
     TypeLock<PoolType, Mtx> lock;

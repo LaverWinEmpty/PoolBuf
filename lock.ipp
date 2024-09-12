@@ -55,12 +55,26 @@ template <typename T> LockGuardBase<T>::LockGuardBase(bool set) {
 
 template <typename T> LockGuardBase<T>::~LockGuardBase() { static_cast<T*>(this)->mtx.unlock(); }
 
-template <typename Mutex>
-LockGuard<Mutex>::LockGuard(Mutex& arg) : mtx(arg), LockGuardBase<LockGuard<Mutex>>(false) {
+template <typename Mtx>
+LockGuard<Mtx>::LockGuard(Mtx& arg) : mtx(arg), LockGuardBase<LockGuard<Mtx>>(false) {
     mtx.lock();
 }
 
-template <class T, class Mutex> Mutex  TypeLock<T, Mutex>::mtx;
-template <size_t N, class Mutex> Mutex IndexLock<N, Mutex>::mtx;
+template <class T, class Mtx> Mtx  TypeLock<T, Mtx>::mtx;
+template <size_t N, class Mtx> Mtx IndexLock<N, Mtx>::mtx;
+
+void DisableLock::Lock() {
+    if (id != std::this_thread::get_id())
+        throw std::runtime_error("NOT PROTECTED");
+}
+
+void DisableLock::Unlock() {}
+
+void DisableLock::lock() {
+    Lock();
+}
+
+void DisableLock::unlock() {}
+
 
 #endif

@@ -109,5 +109,16 @@ public:
     LockGuard(Mutex& arg);
 };
 
+class DisableLock {
+public:
+    void Lock();
+    void Unlock();
+    void lock();
+    void unlock();
+
+private:
+    std::thread::id id = std::this_thread::get_id();
+};
+
 #include "lock.ipp"
 #endif

@@ -169,10 +169,14 @@ public:
     ~MemoryPool();
 
 public:
-    void* New();
-    void  Delete(void*);
+    void* Malloc();
+    void  Free(void*);
     bool  Expand();
     void  Reduce();
+
+public:
+    template<typename T, typename... Args> T* New(Args&&...);
+    template<typename T> void Delete(T* ptr);
 
 private:
     std::stack<Segment*> freeable;
@@ -199,12 +203,8 @@ public:
     static void deallocate(T*, size_t unused = 0);
 
 public:
-    static T*   New();
-    static void Delete(void*);
-
-public:
-    template <typename U> static U*   New();
-    template <typename U> static void Delete(U*);
+    template<typename... Args> static T* New(Args&&...);
+    static void Delete(T*);
 
 public:
     void* operator new[](size_t)  = delete;
