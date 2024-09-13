@@ -1,30 +1,64 @@
 #include "allocator.hpp"
-#include "mutex"
 
 #ifdef LWE_UTILITIES_ALLOCATOR_HPP
 
-const MemoryInfo::Usage& MemoryInfo::GetUsage() const { return info; }
+const MemPoolInfo::Usage& MemPoolInfo::GetUsage() const { return info; }
 
-template <size_t S, size_t N, size_t A>
-template<typename T, typename... Args>
-T* MemoryPool<S, N, A>::New(Args&&... args) {
-    T* ptr = static_cast<T*>(Malloc());
-    new(ptr) T(std::forward<Args>(args)...);
+template <size_t S, class M, size_t N, size_t A> void* Allocator<S, M, N, A>::Malloc() {
+    TypeLock<Allocator<S, M, N, A>, M> locking;
+    return GetChunck();
+}
+
+template <size_t S, class M, size_t N, size_t A> void Allocator<S, M, N, A>::Free(void* ptr) {
+    TypeLock<Allocator<S, M, N, A>, M> locking;
+    ReleaseChunk(ptr);
+}
+
+template <size_t S, class M, size_t N, size_t A>
+template <typename T, typename... Args>
+T* Allocator<S, M, N, A>::New(Args&&... args) {
+    TypeLock<Allocator<S, M, N, A>, M> locking;
+
+    T* ptr = static_cast<T*>(GetChunck());
+    new (ptr) T(std::forward<Args>(args)...);
     return ptr;
 }
 
-template <size_t S, size_t N, size_t A>
-template<typename T>
-void MemoryPool<S, N, A>::Delete(T* ptr) {
+template <size_t S, class M, size_t N, size_t A>
+template <typename T>
+void Allocator<S, M, N, A>::Delete(T* ptr) {
+    TypeLock<Allocator<S, M, N, A>, M> locking;
+
     ptr->~T();
-    Free(ptr);
+    ReleaseChunk(ptr);
 }
 
+template <size_t S, class M, size_t N, size_t A>
+size_t Allocator<S, M, N, A>::Expand(size_t count) {
+    size_t created = 0;
 
-template <size_t S, size_t N, size_t A> void* MemoryPool<S, N, A>::Malloc() {
+    while (created < count) {
+        TypeLock<Allocator<S, M, N, A>, M> locking;
+        if (NewBlock() == false) {
+            break;
+        }
+        ++created;
+    }
+    return created;
+}
+
+template <size_t S, class M, size_t N, size_t A> size_t Allocator<S, M, N, A>::Reduce() {
+    TypeLock<Allocator<S, M, N, A>, M> locking;
+
+    size_t before = freeable.size();
+    FreeBlock();
+    return before - freeable.size();
+}
+
+template <size_t S, class M, size_t N, size_t A> void* Allocator<S, M, N, A>::GetChunck() {
     if (top == nullptr) {
         if (freeable.empty()) {
-            if (Expand() == false) {
+            if (NewBlock() == false) {
                 return nullptr;
             }
         }
@@ -68,7 +102,7 @@ template <size_t S, size_t N, size_t A> void* MemoryPool<S, N, A>::Malloc() {
     return ret;
 }
 
-template <size_t S, size_t N, size_t A> void MemoryPool<S, N, A>::Free(void* p) {
+template <size_t S, class M, size_t N, size_t A> void Allocator<S, M, N, A>::ReleaseChunk(void* p) {
     Chunk*   ptr   = static_cast<Chunk*>(p);
     Segment* block = ptr->block;
 
@@ -104,19 +138,19 @@ template <size_t S, size_t N, size_t A> void MemoryPool<S, N, A>::Free(void* p) 
             if (block->next == nullptr) {
                 return;
             }
-            
-            top = top->next;
+
+            top       = top->next;
             top->prev = nullptr;
         }
 
         if (block->next != nullptr) {
             block->next->prev = block->prev;
-            block->next = nullptr;
+            block->next       = nullptr;
         }
 
         if (block->prev != nullptr) {
             block->prev->next = block->next;
-            block->prev = nullptr;
+            block->prev       = nullptr;
         }
 
         freeable.push(block);
@@ -126,7 +160,7 @@ template <size_t S, size_t N, size_t A> void MemoryPool<S, N, A>::Free(void* p) 
     }
 }
 
-template <size_t S, size_t N, size_t A> bool MemoryPool<S, N, A>::Expand() {
+template <size_t S, class M, size_t N, size_t A> bool Allocator<S, M, N, A>::NewBlock() {
     Segment* newBlock = static_cast<Segment*>(_aligned_malloc(BLOCK_TOTAL_SIZE, ALIGNMENT));
     if (!newBlock) {
         return false;
@@ -145,11 +179,11 @@ template <size_t S, size_t N, size_t A> bool MemoryPool<S, N, A>::Expand() {
     for (size_t index = 0; index < CHUNK_COUNT - 1; ++index) {
         AlignedChunk* next = cursor + 1;
 
-        cursor->next   = &next->data;
+        cursor->next  = &next->data;
         cursor->block = newBlock;
-        cursor         = next;
+        cursor        = next;
     }
-    cursor->next   = nullptr;
+    cursor->next  = nullptr;
     cursor->block = newBlock;
 
     info.block.total += 1;
@@ -168,7 +202,7 @@ template <size_t S, size_t N, size_t A> bool MemoryPool<S, N, A>::Expand() {
     return true;
 }
 
-template <size_t S, size_t N, size_t A> void MemoryPool<S, N, A>::Reduce() {
+template <size_t S, class M, size_t N, size_t A> void Allocator<S, M, N, A>::FreeBlock() {
     while (freeable.empty() == false) {
         all.erase(freeable.top());
 
@@ -185,54 +219,15 @@ template <size_t S, size_t N, size_t A> void MemoryPool<S, N, A>::Reduce() {
     }
 }
 
-template <size_t S, size_t N, size_t A> MemoryPool<S, N, A>::MemoryPool() {}
+template <size_t S, class M, size_t N, size_t A>
+Allocator<S, M, N, A>::Allocator() : MemPoolInfo() {}
 
-template <size_t S, size_t N, size_t A> MemoryPool<S, N, A>::~MemoryPool() {
+template <size_t S, class M, size_t N, size_t A> Allocator<S, M, N, A>::~Allocator() {
     for (typename std::set<Segment*>::iterator itr = all.begin(); itr != all.end(); ++itr) {
         _aligned_free(*itr);
     }
 }
 
-template <typename T, size_t N, size_t A, class Mtx>
-Allocator<T, N, A, Mtx>::PoolType Allocator<T, N, A, Mtx>::pool;
-
-template <typename T, size_t N, size_t A, class Mtx>
-T* Allocator<T, N, A, Mtx>::allocate(size_t unused) {
-    TypeLock<PoolType, Mtx> lock;
-    return pool.New<T>();
-}
-
-template <typename T, size_t N, size_t A, class Mtx>
-void Allocator<T, N, A, Mtx>::deallocate(T* p, size_t unused) {
-    TypeLock<PoolType, Mtx> lock;
-    pool.Delete<T>(p);
-}
-
-template <typename T, size_t N, size_t A, class Mtx>
-template <typename... Args>T* Allocator<T, N, A, Mtx>::New(Args&&... args) {
-    TypeLock<PoolType, Mtx> lock;
-    return pool.New<T>(args...);
-}
-
-template <typename T, size_t N, size_t A, class Mtx> void Allocator<T, N, A, Mtx>::Delete(T* p) {
-    TypeLock<PoolType, Mtx> lock;
-    pool.Delete<T>(p);
-}
-
-
-template <typename T, size_t N, size_t A, class Mtx> bool Allocator<T, N, A, Mtx>::Expand() {
-    TypeLock<PoolType, Mtx> lock;
-    return pool.Expand();
-}
-
-template <typename T, size_t N, size_t A, class Mtx> void Allocator<T, N, A, Mtx>::Reduce() {
-    TypeLock<PoolType, Mtx> lock;
-    pool.Reduce();
-}
-
-template <typename T, size_t N, size_t A, class Mtx>
-const MemoryInfo::Usage& Allocator<T, N, A, Mtx>::GetUsage() {
-    return pool.GetUsage();
-}
+MemPoolInfo::MemPoolInfo() : info{0} {}
 
 #endif

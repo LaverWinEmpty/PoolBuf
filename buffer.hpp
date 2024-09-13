@@ -6,6 +6,7 @@
 #include "allocator.hpp"
 #include "config.h"
 #include "lock.hpp"
+#include "singleton.hpp"
 
 /*
     buffer like char[N]
@@ -25,13 +26,13 @@
     std::cout << str;
  */
 
-template <size_t SIZE                  = EConfig::BUFFER_SIZE_DEFAULT,
+template <size_t SIZE = EConfig::BUFFER_SIZE_DEFAULT, class Mtx = SpinLock,
           size_t ALLOCATOR_CHUNK_COUNT = EConfig::MEMORY_POOL_CHUNK_COUNT_DEFAULT,
-          size_t ALLOCATOR_ALIGNMENT   = EConfig::MEMORY_POOL_ALIGNMENT_DEFAULT,
-          class Mutex                  = SpinLock>
+          size_t ALLOCATOR_ALIGNMENT   = EConfig::MEMORY_POOL_ALIGNMENT_DEFAULT>
 class Buffer {
 public:
-    using AllocatorType = Allocator<Block<SIZE>, ALLOCATOR_CHUNK_COUNT, ALLOCATOR_ALIGNMENT>;
+    using AllocatorType =
+        Allocator<sizeof(Block<SIZE>), Mtx, ALLOCATOR_CHUNK_COUNT, ALLOCATOR_ALIGNMENT>;
 
 public:
     static constexpr size_t Size();
@@ -53,12 +54,12 @@ public:
     Buffer& operator=(const char*);
 
 public:
-    template <size_t, size_t, size_t, class> friend class Buffer;
-    template <size_t N, size_t X, size_t A, class M> Buffer(const Buffer<N, X, A, M>&);
-    template <size_t N, size_t X, size_t A, class M> Buffer(const Buffer&&) = delete;
-    template <size_t N, size_t X, size_t A, class M> Buffer& operator=(const Buffer<N, X, A, M>&);
-    template <size_t N, size_t X, size_t A, class M>
-    Buffer& operator=(const Buffer<N, X, A, M>&&) = delete;
+    template <size_t, class, size_t, size_t> friend class Buffer;
+    template <size_t N, class M, size_t X, size_t A> Buffer(const Buffer<N, M, X, A>&);
+    template <size_t N, class M, size_t X, size_t A> Buffer(const Buffer&&) = delete;
+    template <size_t N, class M, size_t X, size_t A> Buffer& operator=(const Buffer<N, M, X, A>&);
+    template <size_t N, class M, size_t X, size_t A>
+    Buffer& operator=(const Buffer<N, M, X, A>&&) = delete;
 
 public:
     int8_t& operator[](size_t);
@@ -81,7 +82,7 @@ private:
     int8_t* ptr;
 
 private:
-    AllocatorType allocator;
+    Singleton<AllocatorType, void> allocator;
 };
 
 #include "buffer.ipp"

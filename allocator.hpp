@@ -96,7 +96,7 @@
 /*
     base
 */
-class MemoryInfo {
+class MemPoolInfo {
 public:
     struct Usage {
         struct {
@@ -134,91 +134,61 @@ public:
         Segment* block;
     };
 
+protected:
+    MemPoolInfo();
+
 public:
     const Usage& GetUsage() const;
 
 protected:
-    Usage info = {0};
+    Usage info;
 };
 
-/*
-    non thread safe memory pool object class
-*/
-template <size_t SIZE, size_t COUNT = EConfig::MEMORY_POOL_CHUNK_COUNT_DEFAULT,
+template <size_t SIZE, class Mtx = DisableLock,
+          size_t COUNT = EConfig::MEMORY_POOL_CHUNK_COUNT_DEFAULT,
           size_t ALIGN = EConfig::MEMORY_POOL_ALIGNMENT_DEFAULT>
-class MemoryPool : public MemoryInfo {
-    template<typename, size_t, size_t, class> friend class Allocator;
-
+class Allocator : public MemPoolInfo {
 public:
     static constexpr size_t ALIGNMENT = Aligner<ALIGN>::POWER_OF_TWO;
 
-
 public:
     using Chunk          = Chunk<SIZE>;
-    using AlignedSegment = Aligner<ALIGNMENT, MemoryInfo::Segment>::Type;
-    using AlignedChunk   = Aligner<ALIGNMENT, MemoryInfo::Chunk<SIZE>>::Type;
+    using AlignedSegment = Aligner<ALIGNMENT, MemPoolInfo::Segment>::Type;
+    using AlignedChunk   = Aligner<ALIGNMENT, MemPoolInfo::Chunk<SIZE>>::Type;
 
 public:
-    static constexpr size_t CHUNK_SIZE  = MemoryInfo::Chunk<SIZE>::SIZE;
+    static constexpr size_t CHUNK_SIZE  = MemPoolInfo::Chunk<SIZE>::SIZE;
     static constexpr size_t CHUNK_COUNT = COUNT;
     static constexpr size_t BLOCK_TOTAL_SIZE =
         sizeof(AlignedSegment) + sizeof(AlignedChunk) * CHUNK_COUNT;
 
 public:
-    MemoryPool();
-    ~MemoryPool();
+    using LockType = Mtx;
 
 public:
-    void* Malloc();
-    void  Free(void*);
-    bool  Expand();
-    void  Reduce();
+    Allocator();
+    ~Allocator();
+
+private:
+    void* GetChunck();
+    void  ReleaseChunk(void*);
+    bool  NewBlock();
+    void  FreeBlock();
 
 public:
-    template<typename T, typename... Args> T* New(Args&&...);
-    template<typename T> void Delete(T* ptr);
+    void*  Malloc();
+    void   Free(void*);
+    size_t Expand(size_t = 1);
+    size_t Reduce();
+
+public:
+    template <typename T, typename... Args> T* New(Args&&...);
+    template <typename T> void                 Delete(T* ptr);
 
 private:
     std::stack<Segment*> freeable;
     std::set<Segment*>   all;
     Segment*             top = nullptr;
-};
-
-
-/*
-    thread safe memory static instance pool
-*/
-template <typename T, size_t COUNT = EConfig::MEMORY_POOL_CHUNK_COUNT_DEFAULT,
-          size_t ALIGNMENT = EConfig::MEMORY_POOL_ALIGNMENT_DEFAULT, class Mutex = SpinLock>
-class Allocator {
-public:
-    using PoolType  = MemoryPool<sizeof(T), COUNT, ALIGNMENT>;
-    using MutexType = Mutex;
-
-public:
-    using value_type = T;
-    template <typename U> Allocator(Allocator<U>&) {}
-    Allocator() {}
-    static T*   allocate(size_t unused = 0);
-    static void deallocate(T*, size_t unused = 0);
-
-public:
-    template<typename... Args> static T* New(Args&&...);
-    static void Delete(T*);
-
-public:
-    void* operator new[](size_t)  = delete;
-    void operator delete[](void*) = delete;
-
-public:
-    static bool Expand();
-    static void Reduce();
-
-public:
-    static const MemoryInfo::Usage& GetUsage();
-
-private:
-    static PoolType pool;
 };
 
 #include "allocator.ipp"

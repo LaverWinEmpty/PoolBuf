@@ -10,7 +10,7 @@
 
 /*
     LockGuard<MutexType> : object
-    
+
     TypeLock<typename, MutexType>: static
 
     IndexLock<size_t, MutexTpye> : static
@@ -45,70 +45,43 @@
     std::lock_guard<SpinLock> l;
 */
 
-template <typename Derived> class LockGuardBase {
-public:
-    LockGuardBase(bool = true);
-    ~LockGuardBase();
-
-public:
-    NO_COPYABLE(LockGuardBase);
-    NO_MOVABLE(LockGuardBase);
-};
-
 class SpinLock {
 public:
     NO_COPYABLE(SpinLock);
     NO_MOVABLE(SpinLock);
 
 public:
-    SpinLock(size_t limit     = EConfig::SPIN_LOCK_BACKOFF_LIMIT_DEFAULT,
-             size_t increment = EConfig::SPIN_LOCK_BACKOFF_INCREMENT_DEFAULT);
+    SpinLock(int = EConfig::LOCK_SPIN_COUNT_DEFAULT, int = EConfig::LOCK_BACKOFF_LIMIT_DEFAULT);
 
 public:
     void Lock();
     void Unlock();
 
 public:
-    void SetBackoff(int limit, int increment);
-    void SetBackoffLimit(int);
-    void SetBackoffIncrement(int);
+    void SetSpinCount(int, int backoff = 0);
+    void SetBackoffIncrement(int, int spin = 0);
 
 public:
-    size_t GetTotalWaitTime();
+    double GetBackoffWaitSec();
 
 private:
-    std::atomic_bool             mtx    = false;
-    std::atomic_int              locked = 0;
-    std::atomic<std::thread::id> owner  = std::thread::id();
+    std::atomic<std::thread::id> owner   = std::thread::id();
+    std::atomic_int              spin    = 0;
+    std::atomic_int              backoff = 0;
+    std::atomic_int              locked  = 0;
+    std::atomic_bool             flag    = false;
 
 public:
     void lock();
     void unlock();
-
-private:
-    struct {
-        size_t limit, increment;
-    } backoff;
 };
 
-template <class T, class Mutex = SpinLock> class TypeLock : LockGuardBase<TypeLock<T, Mutex>> {
-    friend LockGuardBase;
-    static Mutex mtx;
-};
+/*
+    lock disable
+    but throw error in multi thread program
 
-template <size_t N, class Mutex = SpinLock> class IndexLock : LockGuardBase<IndexLock<N, Mutex>> {
-    friend LockGuardBase;
-    static Mutex mtx;
-};
-
-template <class Mutex = SpinLock> class LockGuard : LockGuardBase<LockGuard<Mutex>> {
-    friend LockGuardBase;
-    Mutex& mtx;
-
-public:
-    LockGuard(Mutex& arg);
-};
-
+    not throw: use void
+*/
 class DisableLock {
 public:
     void Lock();
@@ -118,6 +91,49 @@ public:
 
 private:
     std::thread::id id = std::this_thread::get_id();
+};
+
+template <class Mtx> class LockGuard {
+public:
+    NO_COPYABLE(LockGuard);
+    NO_MOVABLE(LockGuard);
+
+public:
+    LockGuard(Mtx&);
+    ~LockGuard();
+
+public:
+    Mtx& Locker();
+
+private:
+    Mtx& mtx;
+};
+
+template <class T, class Mtx = SpinLock> class TypeLock : public LockGuard<Mtx> {
+public:
+    TypeLock();
+    Mtx& Locker();
+
+private:
+    static Mtx mtx;
+};
+
+template <size_t N, class Mtx = SpinLock> class IndexLock : public LockGuard<Mtx> {
+public:
+    IndexLock();
+    Mtx& Locker();
+
+private:
+    static Mtx mtx;
+};
+
+template <class T> class TypeLock<T, void> {};
+
+template <size_t N> class IndexLock<N, void> {};
+
+template <> class LockGuard<void> {
+public:
+    template <typename T> LockGuard(T&& arg);
 };
 
 #include "lock.ipp"
