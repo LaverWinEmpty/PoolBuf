@@ -2,25 +2,20 @@
 #include "allocator.hpp"
 #include "singleton.hpp"
 
-#include <unordered_map>
-
 // pooled PooledStorage
-template<typename T, class Lock = DisableLock,
-    size_t COUNT = EConfig::MEMORY_POOL_CHUNK_COUNT_DEFAULT,
-    size_t ALIGN = EConfig::MEMORY_POOL_ALIGNMENT_DEFAULT>
-class PooledStorage {
+template<typename T, class Setter = Memory::Setting<sizeof(T)>> class PooledStorage {
     using UID = UID<T, void>;
     struct Item {
         UID uid = UID::Unassigned();
         T*  ptr = nullptr;
     };
 
-    using Allocator = Singleton<Allocator<sizeof(T), void, COUNT, ALIGN>, Lock>;
+    using Allocator = Singleton<Allocator<sizeof(T), Setter>>;
     
 public:
     PooledStorage() {
         if (Allocator::Instance() == nullptr) {
-            TypeLock<PooledStorage<T>, Lock> _;
+            TypeLock<PooledStorage<T>, Setter::LockType> _;
             if (Allocator::Instance() == nullptr) {
                 Allocator::CreateInstance();
             }
@@ -29,9 +24,9 @@ public:
 
 public:
     ID Insert(T&& arg) {
-        TypeLock<PooledStorage<T>, Lock> _;
+        TypeLock<PooledStorage<T>, Setter::LockType> _;
         
-        const MemPoolInfo::Usage& usage = Allocator::Instance()->GetUsage();
+        const Memory::Usage& usage = Allocator::Instance()->GetUsage();
 
         if(usage.chunk.usable == 0) {
             if (Allocator::Instance()->Expand() == false) {
@@ -59,7 +54,7 @@ public:
 
 public:
     bool Erase(ID id) {
-        TypeLock<PooledStorage<T>, Lock> _;
+        TypeLock<PooledStorage<T>, Setter::LockType> _;
 
         size_t index = ID::Indexing(id);
         if (items[index].uid == ID::INVALID) {
@@ -74,8 +69,8 @@ public:
 
         --size;
 
-        const MemPoolInfo::Usage& usage = Allocator::Instance()->GetUsage();
-        if(usage.chunk.usable >= (COUNT * 3)) {
+        const Memory::Usage& usage = Allocator::Instance()->GetUsage();
+        if(usage.chunk.usable >= (Setter::CHUNK_COUNT * 3)) {
             Allocator::Instance()->Reduce();
         }
 
@@ -110,5 +105,5 @@ private:
 };
 
 
-template<typename T, class M, size_t N, size_t A> std::vector<typename PooledStorage<T, M, N, A>::Item> PooledStorage<T, M, N, A>::items;
-template<typename T, class M, size_t N, size_t A> std::vector<void*> PooledStorage<T, M, N, A>::owner;
+template<typename T, class Set> std::vector<typename PooledStorage<T, Set>::Item> PooledStorage<T, Set>::items;
+template<typename T, class Set> std::vector<void*> PooledStorage<T, Set>::owner;

@@ -45,6 +45,9 @@ private:
 public:
     static constexpr size_t POWER_OF_TWO =
         N == 0 ? 1 : (X | (X >> 1) | (X >> 2) | (X >> 4) | (X >> 8) | (X >> 16) | (X >> 32)) + 1;
+
+public:
+    static constexpr size_t ALIGN_TO_POINTER = sizeof(void*) * (N + sizeof(void*) - 1) / sizeof(void*);
 };
 
 #endif

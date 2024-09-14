@@ -2,42 +2,42 @@
 
 #ifdef LWE_UTILITIES_ALLOCATOR_HPP
 
-const MemPoolInfo::Usage& MemPoolInfo::GetUsage() const {
+const Memory::Usage& Memory::GetUsage() const {
     return info;
 }
 
-template<size_t S, class M, size_t N, size_t A> void* Allocator<S, M, N, A>::Malloc() {
-    TypeLock<Allocator<S, M, N, A>, M> locking;
+template<size_t N, class Set> void* Allocator<N, Set>::Malloc() {
+    TypeLock<Allocator<N, Set>, LockType> _;
     return GetChunck();
 }
 
-template<size_t S, class M, size_t N, size_t A> void Allocator<S, M, N, A>::Free(void* ptr) {
-    TypeLock<Allocator<S, M, N, A>, M> locking;
+template<size_t N, class Set> void Allocator<N, Set>::Free(void* ptr) {
+    TypeLock<Allocator<N, Set>, LockType> _;
     ReleaseChunk(ptr);
 }
 
-template<size_t S, class M, size_t N, size_t A>
+template<size_t N, class Set>
 template<typename T, typename... Args>
-T* Allocator<S, M, N, A>::New(Args&&... args) {
-    TypeLock<Allocator<S, M, N, A>, M> locking;
+T* Allocator<N, Set>::New(Args&&... args) {
+    TypeLock<Allocator<N, Set>, LockType> _;
 
     T* ptr = static_cast<T*>(GetChunck());
     new(ptr) T(std::forward<Args>(args)...);
     return ptr;
 }
 
-template<size_t S, class M, size_t N, size_t A> template<typename T> void Allocator<S, M, N, A>::Delete(T* ptr) {
-    TypeLock<Allocator<S, M, N, A>, M> locking;
+template<size_t N, class Set> template<typename T> void Allocator<N, Set>::Delete(T* ptr) {
+    TypeLock<Allocator<N, Set>, LockType> _;
 
     ptr->~T();
     ReleaseChunk(ptr);
 }
 
-template<size_t S, class M, size_t N, size_t A> size_t Allocator<S, M, N, A>::Expand(size_t count) {
+template<size_t N, class Set> size_t Allocator<N, Set>::Expand(size_t count) {
     size_t created = 0;
 
     while(created < count) {
-        TypeLock<Allocator<S, M, N, A>, M> locking;
+        TypeLock<Allocator<N, Set>, LockType> _;
         if(NewBlock() == false) {
             break;
         }
@@ -46,15 +46,15 @@ template<size_t S, class M, size_t N, size_t A> size_t Allocator<S, M, N, A>::Ex
     return created;
 }
 
-template<size_t S, class M, size_t N, size_t A> size_t Allocator<S, M, N, A>::Reduce() {
-    TypeLock<Allocator<S, M, N, A>, M> locking;
+template<size_t N, class Set> size_t Allocator<N, Set>::Reduce() {
+    TypeLock<Allocator<N, Set>, LockType> _;
 
     size_t before = freeable.size();
     FreeBlock();
     return before - freeable.size();
 }
 
-template<size_t S, class M, size_t N, size_t A> void* Allocator<S, M, N, A>::GetChunck() {
+template<size_t N, class Set> void* Allocator<N, Set>::GetChunck() {
     if(top == nullptr) {
         if(freeable.empty()) {
             if(NewBlock() == false) {
@@ -101,7 +101,7 @@ template<size_t S, class M, size_t N, size_t A> void* Allocator<S, M, N, A>::Get
     return ret;
 }
 
-template<size_t S, class M, size_t N, size_t A> void Allocator<S, M, N, A>::ReleaseChunk(void* p) {
+template<size_t N, class Set> void Allocator<N, Set>::ReleaseChunk(void* p) {
     Chunk*   ptr   = static_cast<Chunk*>(p);
     Segment* block = ptr->block;
 
@@ -159,7 +159,7 @@ template<size_t S, class M, size_t N, size_t A> void Allocator<S, M, N, A>::Rele
     }
 }
 
-template<size_t S, class M, size_t N, size_t A> bool Allocator<S, M, N, A>::NewBlock() {
+template<size_t N, class Set> bool Allocator<N, Set>::NewBlock() {
     Segment* newBlock = static_cast<Segment*>(_aligned_malloc(BLOCK_TOTAL_SIZE, ALIGNMENT));
     if(!newBlock) {
         return false;
@@ -198,7 +198,7 @@ template<size_t S, class M, size_t N, size_t A> bool Allocator<S, M, N, A>::NewB
     return true;
 }
 
-template<size_t S, class M, size_t N, size_t A> void Allocator<S, M, N, A>::FreeBlock() {
+template<size_t N, class Set> void Allocator<N, Set>::FreeBlock() {
     while(freeable.empty() == false) {
         all.erase(freeable.top());
 
@@ -215,14 +215,14 @@ template<size_t S, class M, size_t N, size_t A> void Allocator<S, M, N, A>::Free
     }
 }
 
-template<size_t S, class M, size_t N, size_t A> Allocator<S, M, N, A>::Allocator(): MemPoolInfo() {}
+template<size_t N, class Set> Allocator<N, Set>::Allocator(): Memory() {}
 
-template<size_t S, class M, size_t N, size_t A> Allocator<S, M, N, A>::~Allocator() {
+template<size_t N, class Set> Allocator<N, Set>::~Allocator() {
     for(typename std::set<Segment*>::iterator itr = all.begin(); itr != all.end(); ++itr) {
         _aligned_free(*itr);
     }
 }
 
-MemPoolInfo::MemPoolInfo(): info{ 0 } {}
+Memory::Memory(): info{ 0 } {}
 
 #endif
