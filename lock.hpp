@@ -93,7 +93,7 @@ private:
     std::thread::id id = std::this_thread::get_id();
 };
 
-template <class Mtx> class LockGuard {
+template<class Mtx> class LockGuard {
 public:
     NO_COPYABLE(LockGuard);
     NO_MOVABLE(LockGuard);
@@ -109,7 +109,7 @@ private:
     Mtx& mtx;
 };
 
-template <class T, class Mtx = SpinLock> class TypeLock : public LockGuard<Mtx> {
+template<class T, class Mtx = SpinLock> class TypeLock: public LockGuard<Mtx> {
 public:
     TypeLock();
     Mtx& Locker();
@@ -118,7 +118,7 @@ private:
     static Mtx mtx;
 };
 
-template <size_t N, class Mtx = SpinLock> class IndexLock : public LockGuard<Mtx> {
+template<size_t N, class Mtx = SpinLock> class IndexLock: public LockGuard<Mtx> {
 public:
     IndexLock();
     Mtx& Locker();
@@ -127,13 +127,13 @@ private:
     static Mtx mtx;
 };
 
-template <class T> class TypeLock<T, void> {};
+template<class T> class TypeLock<T, void> {};
 
-template <size_t N> class IndexLock<N, void> {};
+template<size_t N> class IndexLock<N, void> {};
 
-template <> class LockGuard<void> {
+template<> class LockGuard<void> {
 public:
-    template <typename T> LockGuard(T&& arg);
+    template<typename T> LockGuard(T&& arg);
 };
 
 #include "lock.ipp"

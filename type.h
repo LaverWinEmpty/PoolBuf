@@ -3,7 +3,7 @@
 
 #include <cstdint>
 
-template <size_t SIZE> struct Block {
+template<size_t SIZE> struct Block {
     uint8_t data[SIZE];
 };
 
@@ -14,20 +14,20 @@ template <size_t SIZE> struct Block {
     use
     Aligner<128, int>::Type variable;
 */
-template <size_t N, typename T = void> struct Aligner {
+template<size_t N, typename T = void> struct Aligner {
 public:
     static constexpr size_t PADDING = (N - (sizeof(T) % N)) % N;
 
 private:
-    template <size_t N, class T, bool = std::is_class_v<T>> struct Aligned : public T {
+    template<size_t N, class T, bool = std::is_class_v<T>> struct Aligned: public T {
         int8_t padding[N];
     };
-    template <class T> struct Aligned<0, T, true> : public T {};
-    template <size_t N, class T> struct Aligned<N, T, false> {
+    template<class T> struct Aligned<0, T, true>: public T {};
+    template<size_t N, class T> struct Aligned<N, T, false> {
         T      data;
         int8_t padding[N];
     };
-    template <class T> struct Aligned<0, T, false> {
+    template<class T> struct Aligned<0, T, false> {
         T data;
     };
 
@@ -38,7 +38,7 @@ public:
 /*
     tparam N value
  */
-template <size_t N> class Aligner<N, void> {
+template<size_t N> class Aligner<N, void> {
 private:
     static constexpr size_t X = N - 1;
 

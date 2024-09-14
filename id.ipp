@@ -5,9 +5,17 @@ template<class T, class Mtx> GID<T> UID<T, Mtx>::gid;
 
 template<class T, class Mtx> std::map<typename SID<T, Mtx>::Value, typename SID<T, Mtx>::Block> SID<T, Mtx>::pool;
 
-ID::ID(Value arg) : value(arg) { }
+ID ID::Invalid() {
+    return ID(INVALID);
+}
 
-ID::ID(const ID& arg) : value(arg.value) { }
+size_t ID::Indexing(ID arg) {
+    return arg - 1;
+}
+
+ID::ID(Value arg): value(arg) {}
+
+ID::ID(const ID& arg): value(arg.value) {}
 
 ID& ID::operator=(const ID& ref) {
     value = ref.value;
@@ -41,23 +49,32 @@ ID ID::operator--(int) {
 }
 
 template<class T, class Mtx> void UID<T, Mtx>::Generate() {
-    if (id == INVALID) {
+    if(id == INVALID) {
         id = gid.Generate();
     }
 }
 
 template<class T, class Mtx> void UID<T, Mtx>::Release() {
     LockGuardType _();
-    if (id != INVALID) {
+    if(id != INVALID) {
         gid.Release(id);
         id = ID(INVALID);
     }
 }
 
-template<class T, class Mtx> UID<T, Mtx>::UID(Value arg) : id(arg) {}
+template<class T, class Mtx> UID<T, Mtx> UID<T, Mtx>::Next() {
+    LockGuardType _();
+    return UID(gid.Generate());
+}
 
-template<class T, class Mtx> UID<T, Mtx>::UID(bool empty) : id(INVALID) {
-    if (!empty) {
+template<class T, class Mtx> UID<T, Mtx> UID<T, Mtx>::Unassigned() {
+    return UID(INVALID);
+}
+
+template<class T, class Mtx> UID<T, Mtx>::UID(Value arg): id(arg) {}
+
+template<class T, class Mtx> UID<T, Mtx>::UID(bool init) {
+    if(init) {
         LockGuardType _();
         id = gid.Generate();
     }
@@ -65,22 +82,22 @@ template<class T, class Mtx> UID<T, Mtx>::UID(bool empty) : id(INVALID) {
 
 template<class T, class Mtx> UID<T, Mtx>::UID(UID&& arg) noexcept {
     LockGuardType _();
-    id = arg.id;
+    id     = arg.id;
     arg.id = ID(INVALID);
 }
 
 template<class T, class Mtx> UID<T, Mtx>::~UID() {
     LockGuardType _();
-    if (!gid.end) {
+    if(!gid.end) {
         gid.Release(id);
     }
 }
 
 template<class T, class Mtx> UID<T, Mtx>& UID<T, Mtx>::operator=(UID&& arg) noexcept {
     LockGuardType _();
-    if (this != &arg) {
+    if(this != &arg) {
         gid.Release(id);
-        id = arg.id;
+        id     = arg.id;
         arg.id = ID(INVALID);
     }
     return *this;
@@ -103,11 +120,10 @@ template<class T> GID<T>::~GID() {
 }
 
 template<class T> ID GID<T>::Generate() {
-    if (cache.empty()) {
-        if (next == INVALID) {
+    if(cache.empty()) {
+        if(next == INVALID) {
             return ID(INVALID);
-        }
-        else return ID{ next++ };
+        } else return ID{ next++ };
     }
 
     Value id = cache.top();
@@ -118,23 +134,22 @@ template<class T> ID GID<T>::Generate() {
 template<class T> void GID<T>::Release(ID id) {
     Value value = id;
 
-    if (value >= next) {
+    if(value >= next) {
         throw std::runtime_error("VALUE TAMPERED");
     }
 
-    if (value == INVALID) {
+    if(value == INVALID) {
         return;
     }
 
-    if (value == next - 1) {
+    if(value == next - 1) {
         --next;
 
-        while (!cache.empty()) {
-            if (cache.top() == next - 1) {
+        while(!cache.empty()) {
+            if(cache.top() == next - 1) {
                 cache.pop();
                 --next;
-            }
-            else break;
+            } else break;
         }
     }
 
@@ -144,7 +159,7 @@ template<class T> void GID<T>::Release(ID id) {
 }
 
 template<class T> ID GID<T>::Preview() const {
-    if (!cache.empty()) {
+    if(!cache.empty()) {
         return ID{ cache.top() };
     }
     return ID{ next };
@@ -152,27 +167,27 @@ template<class T> ID GID<T>::Preview() const {
 
 template<class T, class Mtx> SID<T, Mtx>::SID() {
     UID<T, Mtx> uid;
-    if (uid == INVALID) {
+    if(uid == INVALID) {
         throw std::runtime_error("ID EXCEEDED");
     }
 
-    id = uid;
-    pool[id].uid = std::move(uid);
+    id             = uid;
+    pool[id].uid   = std::move(uid);
     pool[id].count = 1;
 }
 
 template<class T, class Mtx> SID<T, Mtx>::SID(UID<T, Mtx>&& uid) {
-    if (uid == INVALID) {
+    if(uid == INVALID) {
         throw std::runtime_error("INVALID ID");
     }
 
-    id = uid;
-    pool[id].uid = std::move(uid);
+    id             = uid;
+    pool[id].uid   = std::move(uid);
     pool[id].count = 1;
 }
 
 template<class T, class Mtx> SID<T, Mtx>::SID(const SID& sid) {
-    if (sid == INVALID) {
+    if(sid == INVALID) {
         throw std::runtime_error("INVALID ID");
     }
     id = sid.id;
@@ -181,13 +196,13 @@ template<class T, class Mtx> SID<T, Mtx>::SID(const SID& sid) {
 }
 
 template<class T, class Mtx> SID<T, Mtx>::~SID() {
-    if (id == INVALID) {
+    if(id == INVALID) {
         return;
     }
 
     --pool[id].count;
 
-    if (pool[id].count == 0) {
+    if(pool[id].count == 0) {
         pool[id].uid.Release();
     }
 
@@ -195,7 +210,7 @@ template<class T, class Mtx> SID<T, Mtx>::~SID() {
 }
 
 template<class T, class Mtx> SID<T, Mtx>& SID<T, Mtx>::operator=(const SID& sid) {
-    if (sid != INVALID) {
+    if(sid != INVALID) {
         this->~SID();
     }
 
@@ -207,29 +222,26 @@ template<class T, class Mtx> SID<T, Mtx>& SID<T, Mtx>::operator=(const SID& sid)
 }
 
 template<class T, class Mtx> SID<T, Mtx>& SID<T, Mtx>::operator=(UID<T, Mtx>&& uid) noexcept {
-    if (uid == INVALID) {
+    if(uid == INVALID) {
         return *this;
     }
 
-    id = uid;
+    id           = uid;
     pool[id].uid = uid;
     ++pool[id].count;
 
     return *this;
 }
 
-template<class T, class Mtx>
-size_t SID<T, Mtx>::Counting() const {
+template<class T, class Mtx> size_t SID<T, Mtx>::Counting() const {
     return pool[id].count;
 }
 
-template<class T, class Mtx>
-SID<T, Mtx>::operator ID() const {
+template<class T, class Mtx> SID<T, Mtx>::operator ID() const {
     return id;
 }
 
-template<class T, class Mtx>
-SID<T, Mtx>::operator Value() const {
+template<class T, class Mtx> SID<T, Mtx>::operator Value() const {
     return id;
 }
 

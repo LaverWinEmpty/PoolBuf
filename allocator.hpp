@@ -7,6 +7,7 @@
 #include "config.h"
 #include "lock.hpp"
 #include "type.h"
+#include "singleton.hpp"
 
 /*
     MemoryPool<64, 8, 8>
@@ -33,11 +34,11 @@
     head
     ↓
     ┌──────────┬──────┬──────┬──────┬──────┬──────┬ ─ ─ ┬──────┬──────┐
-    │ metadata │ 0x00 │ data │      │ 0x00 │ data │ ... │ data │      │
+    │ metadata │ data │ 0x00 │      │ data │ 0x00 │ ... │ 0x00 │      │
     ├──────────┼──────┼──────┼──────┴──────┴──────┴ ─ ─ ┴──────┴──────┘
     │          │      │      └─> padding
-    │          │      └────────> data (multiple of pointer byte)
-    │          └───────────────> metadata address
+    │          │      └────────> metadata address
+    │          └───────────────> instance
     │
     ├ ─ 8 byte: used object counter
     ├ ─ 8 byte: next object pointer
@@ -48,50 +49,6 @@
     └─> total 40 byte
 */
 
-/*
-    faster than boost under certain conditions
-    stable regardless of size
-
-    Method
-
-    void* New()
-    - return instance
-    - array is impossible
-    - if pool empty, call Expand (failed: return nullptr)
-
-    Dlete(void*)
-    - free
-    - pool check => throw error when mismatching
-
-    bool Expand()
-    - create new block (use _aligned_malloc())
-    - failed: return bool
-
-    Reduce()
-    - release unusing pool (use _aligned_free())
-
-    GetUsage()
-    - get usage inforamtion structure
-
-
-    MemoryPool<SIZE, COUNT, ALIGNMENT>
-    - non thread safe memory pool object class
-
-    use
-
-    MemoryPool<sizeof(int)> pool;
-    auto p = pool.New();
-    pool.Delete(p);
-
-
-    Allocator<Type, COUNT, ALIGNMENT, MutexType>
-    - thread safe memory static instance pool
-
-    use
-
-    ptr = Allocator<int>::New();
-    Allocator<int>::Delete(ptr);
-*/
 
 /*
     base
@@ -125,7 +82,7 @@ public:
     };
 
 public:
-    template <size_t N> struct Chunk {
+    template<size_t N> struct Chunk {
         static constexpr size_t SIZE = sizeof(void*) * ((N + sizeof(void*) - 1) / sizeof(void*));
         union {
             Block<SIZE> data;
@@ -144,10 +101,9 @@ protected:
     Usage info;
 };
 
-template <size_t SIZE, class Mtx = DisableLock,
-          size_t COUNT = EConfig::MEMORY_POOL_CHUNK_COUNT_DEFAULT,
-          size_t ALIGN = EConfig::MEMORY_POOL_ALIGNMENT_DEFAULT>
-class Allocator : public MemPoolInfo {
+template<size_t SIZE, class Mtx = DisableLock, size_t COUNT = EConfig::MEMORY_POOL_CHUNK_COUNT_DEFAULT,
+         size_t ALIGN = EConfig::MEMORY_POOL_ALIGNMENT_DEFAULT>
+class Allocator: public MemPoolInfo {
 public:
     static constexpr size_t ALIGNMENT = Aligner<ALIGN>::POWER_OF_TWO;
 
@@ -157,10 +113,9 @@ public:
     using AlignedChunk   = Aligner<ALIGNMENT, MemPoolInfo::Chunk<SIZE>>::Type;
 
 public:
-    static constexpr size_t CHUNK_SIZE  = MemPoolInfo::Chunk<SIZE>::SIZE;
-    static constexpr size_t CHUNK_COUNT = COUNT;
-    static constexpr size_t BLOCK_TOTAL_SIZE =
-        sizeof(AlignedSegment) + sizeof(AlignedChunk) * CHUNK_COUNT;
+    static constexpr size_t CHUNK_SIZE       = MemPoolInfo::Chunk<SIZE>::SIZE;
+    static constexpr size_t CHUNK_COUNT      = COUNT;
+    static constexpr size_t BLOCK_TOTAL_SIZE = sizeof(AlignedSegment) + sizeof(AlignedChunk) * CHUNK_COUNT;
 
 public:
     using LockType = Mtx;
@@ -182,14 +137,47 @@ public:
     size_t Reduce();
 
 public:
-    template <typename T, typename... Args> T* New(Args&&...);
-    template <typename T> void                 Delete(T* ptr);
+    template<typename T, typename... Args> T* New(Args&&...);
+    template<typename T> void                 Delete(T* ptr);
 
 private:
     std::stack<Segment*> freeable;
     std::set<Segment*>   all;
     Segment*             top = nullptr;
 };
+
+template<typename T, class Lock = SpinLock, class Allocator = Allocator<sizeof(T), void,
+    EConfig::MEMORY_POOL_CHUNK_COUNT_DEFAULT, EConfig::MEMORY_POOL_ALIGNMENT_DEFAULT>>
+class Pool {
+    using AllocatorType = Allocator;
+    using value_type = T;
+
+
+public:
+    template<typename U> Pool(const Pool<U>&) noexcept;
+    Pool() = default;
+    void* allocate(size_t = 0);
+    void  deallocate(void*, size_t = 0);
+
+private:
+    static AllocatorType allocator;
+};
+
+template<typename T, class Lock, class Allocator>
+template<typename U>
+Pool<T, Lock, Allocator>::Pool(const Pool<U>&) noexcept {}
+
+template<typename T, class Lock, class Allocator> void* Pool<T, Lock, Allocator>::allocate(size_t) {
+    return allocator.Malloc();
+}
+
+template<typename T, class Lock, class Allocator> void Pool<T, Lock, Allocator>::deallocate(void* p, size_t) {
+    allocator.Free(p);
+}
+
+template<typename T, class Lock, class Allocator>
+Pool<T, Lock, Allocator>::AllocatorType Pool<T, Lock, Allocator>::allocator;
+
 
 #include "allocator.ipp"
 #endif

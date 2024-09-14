@@ -8,9 +8,13 @@
 
 // default id
 struct ID {
-    public:
-    using Value = size_t;
+public:
+    using Value                    = size_t;
     static constexpr Value INVALID = 0;
+
+public:
+    static ID     Invalid();
+    static size_t Indexing(ID);
 
 public:
     explicit ID(Value = INVALID);
@@ -21,14 +25,14 @@ public:
 public:
     bool operator==(const ID& id) const { return value == id.value; }
     bool operator!=(const ID& id) const { return value != id.value; }
-    bool operator>(const ID& id)  const { return value > id.value; }
-    bool operator<(const ID& id)  const { return value < id.value; }
+    bool operator>(const ID& id) const { return value > id.value; }
+    bool operator<(const ID& id) const { return value < id.value; }
 
 public:
     ID& operator++();
     ID& operator--();
-    ID operator++(int);
-    ID operator--(int);
+    ID  operator++(int);
+    ID  operator--(int);
 
 private:
     Value value;
@@ -36,8 +40,8 @@ private:
 
 // grouped ID
 template<class T> class GID {
-    using Value = ID::Value;
-    using Cache = std::priority_queue<Value>;
+    using Value                    = ID::Value;
+    using Cache                    = std::priority_queue<Value>;
     static constexpr Value INVALID = ID::INVALID;
 
     template<class, class> friend class UID;
@@ -46,9 +50,9 @@ public:
     ~GID();
 
 public:
-    ID    Generate();
-    void  Release(ID);
-    ID    Preview() const;
+    ID   Generate();
+    void Release(ID);
+    ID   Preview() const;
 
 private:
     Value next = 1;
@@ -59,15 +63,19 @@ private:
 // unique id
 template<class T = void, class Mtx = DisableLock> class UID {
 public:
-    using Value = ID::Value;
+    using Value                    = ID::Value;
     static constexpr Value INVALID = ID::INVALID;
-    using LockGuardType = TypeLock<UID<T>, Mtx>;
+    using LockGuardType            = TypeLock<UID<T>, Mtx>;
 
 private:
     UID(Value);
 
 public:
-    UID(bool = false);
+    static UID Next();
+    static UID Unassigned();
+
+public:
+    UID(bool = true);
     UID(UID&&) noexcept;
     ~UID();
 
@@ -94,10 +102,9 @@ private:
 };
 
 // shared id
-template<class T = void, class Mtx = DisableLock>
-class SID {
+template<class T = void, class Mtx = DisableLock> class SID {
 public:
-    using Value = ID::Value;
+    using Value                    = ID::Value;
     static constexpr Value INVALID = ID::INVALID;
 
 public:
@@ -124,7 +131,7 @@ private:
 private:
     struct Block {
         UID<T, Mtx> uid;
-        size_t count = 0;
+        size_t      count = 0;
     };
 
 private:

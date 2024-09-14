@@ -6,10 +6,10 @@
 #include "lock.hpp"
 #include "macro.h"
 
-template <class T, class Mtx = SpinLock> class Singleton {
+template <class T, class Lock = SpinLock> class Singleton {
 public:
     using InstanceType  = T;
-    using LockGuardType = TypeLock<Singleton<T, Mtx>>;
+    using LockGuardType = TypeLock<Singleton<T, Lock>>;
 
 public:
     template <typename... Args> static T*   GetInstance(Args... args);

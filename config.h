@@ -11,5 +11,5 @@ enum {
     LOCK_BACKOFF_LIMIT_DEFAULT      = 0,
 };
 
-}
+} // namespace EConfig
 #endif
