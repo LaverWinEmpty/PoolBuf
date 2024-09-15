@@ -1,9 +1,7 @@
 #include "id.hpp"
 #ifdef LWE_ID_HPP
 
-template<class T, class Mtx> GID<T> UID<T, Mtx>::gid;
-
-template<class T, class Mtx> std::map<typename SID<T, Mtx>::Value, typename SID<T, Mtx>::Block> SID<T, Mtx>::pool;
+template<class T> ID::Manager UID<T>::gid;
 
 ID ID::Invalid() {
     return ID(INVALID);
@@ -48,53 +46,45 @@ ID ID::operator--(int) {
     return id;
 }
 
-template<class T, class Mtx> void UID<T, Mtx>::Generate() {
+template<class T> void UID<T>::Generate() {
     if(id == INVALID) {
         id = gid.Generate();
     }
 }
 
-template<class T, class Mtx> void UID<T, Mtx>::Release() {
-    LockGuardType _();
+template<class T> void UID<T>::Release() {
     if(id != INVALID) {
         gid.Release(id);
         id = ID(INVALID);
     }
 }
 
-template<class T, class Mtx> UID<T, Mtx> UID<T, Mtx>::Next() {
-    LockGuardType _();
+template<class T> UID<T> UID<T>::Next() {
     return UID(gid.Generate());
 }
 
-template<class T, class Mtx> UID<T, Mtx> UID<T, Mtx>::Unassigned() {
+template<class T> UID<T> UID<T>::Unassigned() {
     return UID(INVALID);
 }
 
-template<class T, class Mtx> UID<T, Mtx>::UID(Value arg): id(arg) {}
+template<class T> UID<T>::UID(Value arg): id(arg) {}
 
-template<class T, class Mtx> UID<T, Mtx>::UID(bool init) {
+template<class T> UID<T>::UID(bool init) {
     if(init) {
-        LockGuardType _();
         id = gid.Generate();
     }
 }
 
-template<class T, class Mtx> UID<T, Mtx>::UID(UID&& arg) noexcept {
-    LockGuardType _();
+template<class T> UID<T>::UID(UID&& arg) noexcept {
     id     = arg.id;
     arg.id = ID(INVALID);
 }
 
-template<class T, class Mtx> UID<T, Mtx>::~UID() {
-    LockGuardType _();
-    if(!gid.end) {
-        gid.Release(id);
-    }
+template<class T> UID<T>::~UID() {
+    gid.Release(id);
 }
 
-template<class T, class Mtx> UID<T, Mtx>& UID<T, Mtx>::operator=(UID&& arg) noexcept {
-    LockGuardType _();
+template<class T> UID<T>& UID<T>::operator=(UID&& arg) noexcept {
     if(this != &arg) {
         gid.Release(id);
         id     = arg.id;
@@ -103,23 +93,27 @@ template<class T, class Mtx> UID<T, Mtx>& UID<T, Mtx>::operator=(UID&& arg) noex
     return *this;
 }
 
-template<class T, class Mtx> UID<T, Mtx>::operator ID() const {
+template<class T> UID<T>::operator ID() const {
     return id;
 }
 
-template<class T, class Mtx> UID<T, Mtx>::operator Value() const {
+template<class T> UID<T>::operator Value() const {
     return id;
 }
 
-template<class T, class Mtx> ID UID<T, Mtx>::Preview() {
+template<class T> ID UID<T>::Preview() {
     return gid.Preview();
 }
 
-template<class T> GID<T>::~GID() {
+ID::Manager::~Manager() {
     end = true;
 }
 
-template<class T> ID GID<T>::Generate() {
+ID ID::Manager::Generate() {
+    if (end) {
+        return ID(INVALID);
+    }
+
     if(cache.empty()) {
         if(next == INVALID) {
             return ID(INVALID);
@@ -131,18 +125,20 @@ template<class T> ID GID<T>::Generate() {
     return ID(id);
 }
 
-template<class T> void GID<T>::Release(ID id) {
-    Value value = id;
-
-    if(value >= next) {
-        throw std::runtime_error("VALUE TAMPERED");
-    }
-
-    if(value == INVALID) {
+void ID::Manager::Release(ID id) {
+    if (end == true) {
         return;
     }
 
-    if(value == next - 1) {
+    if(id >= next) {
+        throw std::runtime_error("Value tampered.");
+    }
+
+    if(id == INVALID) {
+        return;
+    }
+
+    if(id == next - 1) {
         --next;
 
         while(!cache.empty()) {
@@ -154,95 +150,15 @@ template<class T> void GID<T>::Release(ID id) {
     }
 
     else {
-        cache.push(value);
+        cache.push(id);
     }
 }
 
-template<class T> ID GID<T>::Preview() const {
+ID ID::Manager::Preview() const {
     if(!cache.empty()) {
         return ID{ cache.top() };
     }
     return ID{ next };
-}
-
-template<class T, class Mtx> SID<T, Mtx>::SID() {
-    UID<T, Mtx> uid;
-    if(uid == INVALID) {
-        throw std::runtime_error("ID EXCEEDED");
-    }
-
-    id             = uid;
-    pool[id].uid   = std::move(uid);
-    pool[id].count = 1;
-}
-
-template<class T, class Mtx> SID<T, Mtx>::SID(UID<T, Mtx>&& uid) {
-    if(uid == INVALID) {
-        throw std::runtime_error("INVALID ID");
-    }
-
-    id             = uid;
-    pool[id].uid   = std::move(uid);
-    pool[id].count = 1;
-}
-
-template<class T, class Mtx> SID<T, Mtx>::SID(const SID& sid) {
-    if(sid == INVALID) {
-        throw std::runtime_error("INVALID ID");
-    }
-    id = sid.id;
-
-    ++pool[id].count;
-}
-
-template<class T, class Mtx> SID<T, Mtx>::~SID() {
-    if(id == INVALID) {
-        return;
-    }
-
-    --pool[id].count;
-
-    if(pool[id].count == 0) {
-        pool[id].uid.Release();
-    }
-
-    id = ID(INVALID);
-}
-
-template<class T, class Mtx> SID<T, Mtx>& SID<T, Mtx>::operator=(const SID& sid) {
-    if(sid != INVALID) {
-        this->~SID();
-    }
-
-    id = sid.id;
-    ++pool[id].count;
-    pool[id].uid.Generate();
-
-    return *this;
-}
-
-template<class T, class Mtx> SID<T, Mtx>& SID<T, Mtx>::operator=(UID<T, Mtx>&& uid) noexcept {
-    if(uid == INVALID) {
-        return *this;
-    }
-
-    id           = uid;
-    pool[id].uid = uid;
-    ++pool[id].count;
-
-    return *this;
-}
-
-template<class T, class Mtx> size_t SID<T, Mtx>::Counting() const {
-    return pool[id].count;
-}
-
-template<class T, class Mtx> SID<T, Mtx>::operator ID() const {
-    return id;
-}
-
-template<class T, class Mtx> SID<T, Mtx>::operator Value() const {
-    return id;
 }
 
 #endif

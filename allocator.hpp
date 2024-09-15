@@ -90,10 +90,10 @@ public:
     };
 
 public:
-    template<size_t SIZE, class Lock = DisableLock, size_t COUNT = EConfig::MEMORY_POOL_CHUNK_COUNT_DEFAULT,
-             size_t ALIGN = EConfig::MEMORY_POOL_ALIGNMENT_DEFAULT>
+    template<size_t SIZE,
+            size_t COUNT = EConfig::MEMORY_POOL_CHUNK_COUNT_DEFAULT,
+            size_t ALIGN = EConfig::MEMORY_POOL_ALIGNMENT_DEFAULT>
     struct Setting {
-        using LockType                      = Lock;
         static constexpr size_t CHUNK_COUNT = COUNT;
         static constexpr size_t CHUNK_SIZE  = Chunk<SIZE>::SIZE;
         static constexpr size_t ALIGNMENT   = Aligner<ALIGN>::POWER_OF_TWO;
@@ -112,23 +112,26 @@ protected:
     Usage                info;
 };
 
-template<size_t SIZE, class Setter = Memory::Setting<SIZE>>
-class Allocator: public Memory {
-public:
-    using Chunk          = Chunk<SIZE>;
-    using AlignedSegment = Aligner<Setting::ALIGNMENT, Memory::Segment>::Type;
-    using AlignedChunk   = Aligner<Setting::ALIGNMENT, Memory::Chunk<SIZE>>::Type;
-    using LockType       = Setter::LockType;
+template<size_t SIZE,
+    size_t COUNT = EConfig::MEMORY_POOL_CHUNK_COUNT_DEFAULT,
+    size_t ALIGN = EConfig::MEMORY_POOL_ALIGNMENT_DEFAULT>
+class Pool: public Memory {
+    using Setter = Setting<SIZE, COUNT, ALIGN>;;
 
 public:
+    using Chunk          = Chunk<SIZE>;
+    using AlignedSegment = Aligner<Setter::ALIGNMENT, Memory::Segment>::Type;
+    using AlignedChunk   = Aligner<Setter::ALIGNMENT, Memory::Chunk<SIZE>>::Type;
+
+public:
+    static constexpr size_t CHUNK_SIZE       = Setter::CHUNK_SIZE;
+    static constexpr size_t CHUNK_COUNT      = Setter::CHUNK_COUNT;
     static constexpr size_t ALIGNMENT        = Setter::ALIGNMENT;
-    static constexpr size_t CHUNK_SIZE       = Memory::Chunk<SIZE>::SIZE;
-    static constexpr size_t CHUNK_COUNT      = Setter::COUNT;
     static constexpr size_t BLOCK_TOTAL_SIZE = sizeof(AlignedSegment) + sizeof(AlignedChunk) * CHUNK_COUNT;
 
 public:
-    Allocator();
-    ~Allocator();
+    Pool();
+    ~Pool();
 
 private:
     void* GetChunck();
@@ -137,46 +140,46 @@ private:
     void  FreeBlock();
 
 public:
-    void*  Malloc();
-    void   Free(void*);
-    size_t Expand(size_t = 1);
-    size_t Reduce();
+    template<class Lock = DisableLock> void*  Malloc();
+    template<class Lock = DisableLock> void   Free(void*);
+    template<class Lock = DisableLock> size_t Expand(size_t = 1);
+    template<class Lock = DisableLock> size_t Reduce();
 
 public:
-    template<typename T, typename... Args> T* New(Args&&...);
-    template<typename T> void                 Delete(T* ptr);
+    template<typename T, class Lock = DisableLock, typename... Args> T* New(Args&&...);
+    template<typename T, class Lock = DisableLock> void                 Delete(T* ptr);
 };
 
-template<typename T, class Setter = Memory::Setting<sizeof(T)>> class Pool {
-    using AllocatorType = Allocator<sizeof(T), Setter>;
+template<typename T,
+    size_t COUNT = EConfig::MEMORY_POOL_CHUNK_COUNT_DEFAULT,
+    size_t ALIGN = EConfig::MEMORY_POOL_ALIGNMENT_DEFAULT>
+class Allocator: public Pool<sizeof(T), COUNT, ALIGN> {
+public:
     using value_type = T;
-
-
-public:
-    template<typename U> Pool(const Pool<U>&) noexcept;
-    Pool() = default;
-    void* allocate(size_t = 0);
-    void  deallocate(void*, size_t = 0);
-
-private:
-    static AllocatorType allocator;
+    template<typename U> Allocator(Allocator<U>&);
+    Allocator();
+    template<class Lock = DisableLock> T*   allocate(size_t = 0);
+    template<class Lock = DisableLock> void deallocate(T*, size_t = 0);
 };
 
-template<typename T, class Setting>
-template<typename U>
-Pool<T, Setting>::Pool(const Pool<U>&) noexcept {}
+template<typename T, size_t COUNT, size_t ALIGN>
+template<class Lock>
+T* Allocator<T, COUNT, ALIGN>::allocate(size_t) {
+    [[maybe_unuesd]] TypeLock<Allocator<T, COUNT, ALIGN>, Lock> _;
 
-template<typename T, class Setting> void* Pool<T, Setting>::allocate(size_t) {
-    return allocator.Malloc();
+    return static_cast<T*>(this->Malloc());
 }
 
-template<typename T, class Setting> void Pool<T, Setting>::deallocate(void* p, size_t) {
-    allocator.Free(p);
+template<typename T, size_t COUNT, size_t ALIGN>
+template<class Lock>
+void Allocator<T, COUNT, ALIGN>::deallocate(T* p, size_t) {
+    [[maybe_unuesd]] TypeLock<Allocator<T, COUNT, ALIGN>, Lock> _;
+    this->Free(p);
 }
 
-template<typename T, class Setting>
-Pool<T, Setting>::AllocatorType Pool<T, Setting>::allocator;
+template<typename T, size_t COUNT, size_t ALIGN> template<typename U> Allocator<T, COUNT, ALIGN>::Allocator(Allocator<U>&) {}
 
+template<typename T, size_t COUNT, size_t ALIGN> Allocator<T, COUNT, ALIGN>::Allocator() {}
 
 #include "allocator.ipp"
 #endif

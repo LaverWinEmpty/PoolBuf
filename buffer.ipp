@@ -1,117 +1,126 @@
 #ifdef LWE_UTILITES_BUFFER_HPP
 
-template<size_t SIZE, class Set>
-Buffer<SIZE, Set>::Buffer(): ptr(reinterpret_cast<int8_t*>(allocator.GetInstance()->Malloc())) {
+template<size_t SIZE, class Lock, size_t COUNT, size_t ALIGN>
+Buffer<SIZE, Lock, COUNT, ALIGN>::Buffer():
+    ptr(Singleton<AllocatorType, void>::GetInstance()->New<int8_t, Lock>()) {
     ::memset(ptr, 0, SIZE);
 }
 
-template<size_t SIZE, class Set> Buffer<SIZE, Set>::Buffer(const Buffer& ref): Buffer() {
+template<size_t SIZE, class Lock, size_t COUNT, size_t ALIGN> Buffer<SIZE, Lock, COUNT, ALIGN>::Buffer(const Buffer& ref): Buffer() {
+    TypeLock<Buffer, Lock>;
     memcpy(ptr, ref.ptr, SIZE);
 }
 
-template<size_t SIZE, class Set> Buffer<SIZE, Set>::Buffer(Buffer&& ref) noexcept: ptr(ref.ptr) {
+template<size_t SIZE, class Lock, size_t COUNT, size_t ALIGN> Buffer<SIZE, Lock, COUNT, ALIGN>::Buffer(Buffer&& ref) noexcept{
+    TypeLock<Buffer, Lock>;
+    ptr     = ref.ptr; 
     ref.ptr = nullptr;
 }
 
-template<size_t SIZE, class Set> Buffer<SIZE, Set>::Buffer(const std::string& str): Buffer() {
+template<size_t SIZE, class Lock, size_t COUNT, size_t ALIGN> Buffer<SIZE, Lock, COUNT, ALIGN>::Buffer(const std::string& str): Buffer() {
+    TypeLock<Buffer, Lock>;
     memcpy(ptr, str.c_str(), SIZE < str.size() ? SIZE : str.size());
 }
 
-template<size_t SIZE, class Set>
-Buffer<SIZE, Set>::Buffer(const char* str): Buffer(std::string(str)) {}
+template<size_t SIZE, class Lock, size_t COUNT, size_t ALIGN>
+Buffer<SIZE, Lock, COUNT, ALIGN>::Buffer(const char* str): Buffer(std::string(str)) {}
 
-template<size_t SIZE, class Set> Buffer<SIZE, Set>::~Buffer() {
-    if(ptr) allocator.GetInstance()->Free(reinterpret_cast<Block<SIZE>*>(ptr));
+template<size_t SIZE, class Lock, size_t COUNT, size_t ALIGN> Buffer<SIZE, Lock, COUNT, ALIGN>::~Buffer() {
+    if(ptr) Singleton<AllocatorType, void>::GetInstance()->Free<Lock>(reinterpret_cast<Block<SIZE>*>(ptr));
 }
 
-template<size_t SIZE, class Set>
-Buffer<SIZE, Set>& Buffer<SIZE, Set>::operator=(const Buffer& ref) {
+template<size_t SIZE, class Lock, size_t COUNT, size_t ALIGN>
+auto Buffer<SIZE, Lock, COUNT, ALIGN>::operator=(const Buffer& ref) -> Buffer&{
+    TypeLock<Buffer, Lock>;
     memcpy(ptr, ref.ptr, SIZE);
     return *this;
 }
 
-template<size_t SIZE, class Set>
-Buffer<SIZE, Set>& Buffer<SIZE, Set>::operator=(Buffer&& ref) noexcept {
+template<size_t SIZE, class Lock, size_t COUNT, size_t ALIGN>
+auto Buffer<SIZE, Lock, COUNT, ALIGN>::operator=(Buffer&& ref) noexcept -> Buffer& {
     if(this != &ref) {
+        TypeLock<Buffer, Lock>;
         ptr     = ref.ptr;
         ref.ptr = nullptr;
     }
     return *this;
 }
 
-template<size_t SIZE, class Set>
-Buffer<SIZE, Set>& Buffer<SIZE, Set>::operator=(const std::string& str) {
+template<size_t SIZE, class Lock, size_t COUNT, size_t ALIGN>
+auto Buffer<SIZE, Lock, COUNT, ALIGN>::operator=(const std::string& str) -> Buffer& {
+    TypeLock<Buffer, Lock>;
     memcpy(ptr, str.c_str(), SIZE < str.size() ? SIZE : str.size());
     return *this;
 }
 
-template<size_t SIZE, class Set>
-Buffer<SIZE, Set>& Buffer<SIZE, Set>::operator=(const char* str) {
+template<size_t SIZE, class Lock, size_t COUNT, size_t ALIGN>
+auto Buffer<SIZE, Lock, COUNT, ALIGN>::operator=(const char* str) -> Buffer& {
+    TypeLock<Buffer, Lock>;
     std::string wrapper = str;
-
     memcpy(ptr, wrapper.c_str(), SIZE < wrapper.size() ? SIZE : wrapper.size());
     return *this;
 }
 
-template<size_t SIZE, class Set>
-template<size_t N, class OtherSet>
-Buffer<SIZE, Set>::Buffer(const Buffer<N, OtherSet>& other): Buffer() {
+template<size_t SIZE, class Lock, size_t COUNT, size_t ALIGN>
+template<size_t N, class L, size_t C, size_t A>
+Buffer<SIZE, Lock, COUNT, ALIGN>::Buffer(const Buffer<N, L, C, A>& other): Buffer() {
+    TypeLock<Buffer, Lock>;
     memcpy(ptr, other.ptr, SIZE < N ? SIZE : N);
 }
 
-template<size_t SIZE, class Set>
-template<size_t N, class OtherSet>
-Buffer<SIZE, Set>& Buffer<SIZE, Set>::operator=(const Buffer<N, OtherSet>& other) {
+template<size_t SIZE, class Lock, size_t COUNT, size_t ALIGN>
+template<size_t N, class L, size_t C, size_t A>
+auto Buffer<SIZE, Lock, COUNT, ALIGN>::operator=(const Buffer<N, L, C, A>& other) -> Buffer& {
+    TypeLock<Buffer, Lock>;
     memcpy(ptr, other.ptr, SIZE < N ? SIZE : N);
     return *this;
 }
 
-template<size_t SIZE, class Set> int8_t& Buffer<SIZE, Set>::operator[](size_t i) {
+template<size_t SIZE, class Lock, size_t COUNT, size_t ALIGN> int8_t& Buffer<SIZE, Lock, COUNT, ALIGN>::operator[](size_t i) {
     return ptr[i];
 }
 
-template<size_t SIZE, class Set> int8_t Buffer<SIZE, Set>::operator[](size_t i) const {
+template<size_t SIZE, class Lock, size_t COUNT, size_t ALIGN> int8_t Buffer<SIZE, Lock, COUNT, ALIGN>::operator[](size_t i) const {
     return ptr[i];
 }
 
-template<size_t SIZE, class Set> int8_t* Buffer<SIZE, Set>::operator+(intptr_t i) const {
+template<size_t SIZE, class Lock, size_t COUNT, size_t ALIGN> int8_t* Buffer<SIZE, Lock, COUNT, ALIGN>::operator+(intptr_t i) const {
     return ptr + i;
 }
 
-template<size_t SIZE, class Set> int8_t* Buffer<SIZE, Set>::operator-(intptr_t i) const {
+template<size_t SIZE, class Lock, size_t COUNT, size_t ALIGN> int8_t* Buffer<SIZE, Lock, COUNT, ALIGN>::operator-(intptr_t i) const {
     return ptr - i;
 }
 
-template<size_t SIZE, class Set> int8_t& Buffer<SIZE, Set>::operator*() {
+template<size_t SIZE, class Lock, size_t COUNT, size_t ALIGN> int8_t& Buffer<SIZE, Lock, COUNT, ALIGN>::operator*() {
     return *ptr;
 }
 
-template<size_t SIZE, class Set> int8_t* Buffer<SIZE, Set>::operator&() {
+template<size_t SIZE, class Lock, size_t COUNT, size_t ALIGN> int8_t* Buffer<SIZE, Lock, COUNT, ALIGN>::operator&() {
     return ptr;
 }
 
-template<size_t SIZE, class Set> Buffer<SIZE, Set>::operator const char*() const {
+template<size_t SIZE, class Lock, size_t COUNT, size_t ALIGN> Buffer<SIZE, Lock, COUNT, ALIGN>::operator const char*() const {
     return reinterpret_cast<const char*>(ptr);
-    ;
 }
 
-template<size_t SIZE, class Set> Buffer<SIZE, Set>::operator char*() {
+template<size_t SIZE, class Lock, size_t COUNT, size_t ALIGN> Buffer<SIZE, Lock, COUNT, ALIGN>::operator char*() const {
     return reinterpret_cast<char*>(ptr);
 }
 
-template<size_t SIZE, class Set> Buffer<SIZE, Set>::operator int8_t*() {
+template<size_t SIZE, class Lock, size_t COUNT, size_t ALIGN> Buffer<SIZE, Lock, COUNT, ALIGN>::operator int8_t*() const {
     return ptr;
 }
 
-template<size_t SIZE, class Set> Buffer<SIZE, Set>::operator uint8_t*() {
+template<size_t SIZE, class Lock, size_t COUNT, size_t ALIGN> Buffer<SIZE, Lock, COUNT, ALIGN>::operator uint8_t*() const {
     return reinterpret_cast<uint8_t*>(ptr);
 }
 
-template<size_t SIZE, class Set> Buffer<SIZE, Set>::operator std::string() const {
+template<size_t SIZE, class Lock, size_t COUNT, size_t ALIGN> Buffer<SIZE, Lock, COUNT, ALIGN>::operator std::string() const {
     return std::string(reinterpret_cast<char*>(ptr), SIZE);
 }
 
-template<size_t SIZE, class Set> constexpr size_t Buffer<SIZE, Set>::Size() {
+template<size_t SIZE, class Lock, size_t COUNT, size_t ALIGN> constexpr size_t Buffer<SIZE, Lock, COUNT, ALIGN>::Size() {
     return SIZE;
 }
 #endif

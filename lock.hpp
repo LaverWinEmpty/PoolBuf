@@ -88,9 +88,6 @@ public:
     void Unlock();
     void lock();
     void unlock();
-
-private:
-    std::thread::id id = std::this_thread::get_id();
 };
 
 template<class Mtx> class LockGuard {

@@ -26,10 +26,15 @@
     std::cout << str;
  */
 
-template<size_t SIZE = EConfig::BUFFER_SIZE_DEFAULT, class Setter = Memory::Setting<SIZE>>
+template<size_t SIZE = EConfig::BUFFER_SIZE_DEFAULT,
+    class Lock = SpinLock,
+    size_t POOL_CHUNK_COUNT = EConfig::MEMORY_POOL_CHUNK_COUNT_DEFAULT,
+    size_t POOL_ALIGNMENT = EConfig::MEMORY_POOL_ALIGNMENT_DEFAULT
+>
 class Buffer {
 public:
-    using AllocatorType = Allocator<SIZE, Setter>;
+    using AllocatorType = Pool<SIZE, POOL_CHUNK_COUNT, POOL_ALIGNMENT>;
+    using Locker        = TypeLock<AllocatorType, Lock>;
 
 public:
     static constexpr size_t Size();
@@ -51,11 +56,9 @@ public:
     Buffer& operator=(const char*);
 
 public:
-    template<size_t, class> friend class Buffer;
-    template<size_t P_N, class PSet> Buffer(const Buffer<P_N, PSet>&);
-    template<size_t P_N, class PSet> Buffer(const Buffer&&) = delete;
-    template<size_t P_N, class PSet> Buffer& operator=(const Buffer<P_N, PSet>&);
-    template<size_t P_N, class PSet> Buffer& operator=(const Buffer<P_N, PSet>&&) = delete;
+    template<size_t, class, size_t, size_t> friend class Buffer;
+    template<size_t S, class L, size_t C, size_t A> Buffer(const Buffer<S, L, C, A>&);
+    template<size_t S, class L, size_t C, size_t A> Buffer& operator=(const Buffer<S, L, C, A>&);
 
 public:
     int8_t& operator[](size_t);
@@ -69,16 +72,13 @@ public:
 
 public:
     operator const char*() const;
-    explicit operator char*();
-    explicit operator int8_t*();
-    explicit operator uint8_t*();
+    explicit operator char*() const;
+    explicit operator int8_t*() const;
+    explicit operator uint8_t*() const;
     operator std::string() const;
 
 private:
     int8_t* ptr;
-
-private:
-    Singleton<AllocatorType, void> allocator;
 };
 
 #include "buffer.ipp"

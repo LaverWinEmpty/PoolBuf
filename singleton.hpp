@@ -6,7 +6,7 @@
 #include "lock.hpp"
 #include "macro.h"
 
-template <class T, class Lock = SpinLock> class Singleton {
+template <class T, class Lock = DisableLock> class Singleton {
 public:
     using InstanceType  = T;
     using LockGuardType = TypeLock<Singleton<T, Lock>>;

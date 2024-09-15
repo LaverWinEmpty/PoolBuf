@@ -6,38 +6,46 @@ const Memory::Usage& Memory::GetUsage() const {
     return info;
 }
 
-template<size_t N, class Set> void* Allocator<N, Set>::Malloc() {
-    TypeLock<Allocator<N, Set>, LockType> _;
+template<size_t N, size_t COUNT, size_t ALIGN>
+template<class Lock>
+void* Pool<N, COUNT, ALIGN>::Malloc() {
+    [[maybe_unused]] TypeLock<Pool<N, COUNT, ALIGN>, Lock> _;
     return GetChunck();
 }
 
-template<size_t N, class Set> void Allocator<N, Set>::Free(void* ptr) {
-    TypeLock<Allocator<N, Set>, LockType> _;
+template<size_t N, size_t COUNT, size_t ALIGN>
+template<class Lock>
+void Pool<N, COUNT, ALIGN>::Free(void* ptr) {
+    [[maybe_unused]] TypeLock<Pool<N, COUNT, ALIGN>, Lock> _;
     ReleaseChunk(ptr);
 }
 
-template<size_t N, class Set>
-template<typename T, typename... Args>
-T* Allocator<N, Set>::New(Args&&... args) {
-    TypeLock<Allocator<N, Set>, LockType> _;
+template<size_t N, size_t COUNT, size_t ALIGN>
+template<typename T, class Lock, typename... Args>
+T* Pool<N, COUNT, ALIGN>::New(Args&&... args) {
+    [[maybe_unused]] TypeLock<Pool<N, COUNT, ALIGN>, Lock> _;
 
     T* ptr = static_cast<T*>(GetChunck());
     new(ptr) T(std::forward<Args>(args)...);
     return ptr;
 }
 
-template<size_t N, class Set> template<typename T> void Allocator<N, Set>::Delete(T* ptr) {
-    TypeLock<Allocator<N, Set>, LockType> _;
+template<size_t N, size_t COUNT, size_t ALIGN>
+template<typename T, class Lock>
+void Pool<N, COUNT, ALIGN>::Delete(T* ptr) {
+    [[maybe_unused]] TypeLock<Pool<N, COUNT, ALIGN>, Lock> _;
 
     ptr->~T();
     ReleaseChunk(ptr);
 }
 
-template<size_t N, class Set> size_t Allocator<N, Set>::Expand(size_t count) {
+template<size_t N, size_t COUNT, size_t ALIGN>
+template<class Lock>
+size_t Pool<N, COUNT, ALIGN>::Expand(size_t count) {
     size_t created = 0;
 
     while(created < count) {
-        TypeLock<Allocator<N, Set>, LockType> _;
+        [[maybe_unused]] TypeLock<Pool<N, COUNT, ALIGN>, Lock> _;
         if(NewBlock() == false) {
             break;
         }
@@ -46,15 +54,18 @@ template<size_t N, class Set> size_t Allocator<N, Set>::Expand(size_t count) {
     return created;
 }
 
-template<size_t N, class Set> size_t Allocator<N, Set>::Reduce() {
-    TypeLock<Allocator<N, Set>, LockType> _;
+template<size_t N, size_t COUNT, size_t ALIGN>
+template<class Lock>
+size_t Pool<N, COUNT, ALIGN>::Reduce() {
+    [[maybe_unused]] TypeLock<Pool<N, COUNT, ALIGN>, Lock> _;
 
     size_t before = freeable.size();
     FreeBlock();
     return before - freeable.size();
 }
 
-template<size_t N, class Set> void* Allocator<N, Set>::GetChunck() {
+template<size_t N, size_t COUNT, size_t ALIGN>
+void* Pool<N, COUNT, ALIGN>::GetChunck() {
     if(top == nullptr) {
         if(freeable.empty()) {
             if(NewBlock() == false) {
@@ -101,7 +112,7 @@ template<size_t N, class Set> void* Allocator<N, Set>::GetChunck() {
     return ret;
 }
 
-template<size_t N, class Set> void Allocator<N, Set>::ReleaseChunk(void* p) {
+template<size_t N, size_t COUNT, size_t ALIGN> void Pool<N, COUNT, ALIGN>::ReleaseChunk(void* p) {
     Chunk*   ptr   = static_cast<Chunk*>(p);
     Segment* block = ptr->block;
 
@@ -159,7 +170,7 @@ template<size_t N, class Set> void Allocator<N, Set>::ReleaseChunk(void* p) {
     }
 }
 
-template<size_t N, class Set> bool Allocator<N, Set>::NewBlock() {
+template<size_t N, size_t COUNT, size_t ALIGN> bool Pool<N, COUNT, ALIGN>::NewBlock() {
     Segment* newBlock = static_cast<Segment*>(_aligned_malloc(BLOCK_TOTAL_SIZE, ALIGNMENT));
     if(!newBlock) {
         return false;
@@ -198,7 +209,7 @@ template<size_t N, class Set> bool Allocator<N, Set>::NewBlock() {
     return true;
 }
 
-template<size_t N, class Set> void Allocator<N, Set>::FreeBlock() {
+template<size_t N, size_t COUNT, size_t ALIGN> void Pool<N, COUNT, ALIGN>::FreeBlock() {
     while(freeable.empty() == false) {
         all.erase(freeable.top());
 
@@ -215,9 +226,9 @@ template<size_t N, class Set> void Allocator<N, Set>::FreeBlock() {
     }
 }
 
-template<size_t N, class Set> Allocator<N, Set>::Allocator(): Memory() {}
+template<size_t N, size_t COUNT, size_t ALIGN> Pool<N, COUNT, ALIGN>::Pool(): Memory() {}
 
-template<size_t N, class Set> Allocator<N, Set>::~Allocator() {
+template<size_t N, size_t COUNT, size_t ALIGN> Pool<N, COUNT, ALIGN>::~Pool() {
     for(typename std::set<Segment*>::iterator itr = all.begin(); itr != all.end(); ++itr) {
         _aligned_free(*itr);
     }

@@ -2,51 +2,79 @@
 #include "allocator.hpp"
 #include "singleton.hpp"
 
-// pooled PooledStorage
-template<typename T, class Setter = Memory::Setting<sizeof(T)>> class PooledStorage {
-    using UID = UID<T, void>;
+#include <unordered_map>
+
+// pooled storage
+template<typename T, class Lock = SpinLock, size_t COUNT = EConfig::MEMORY_POOL_CHUNK_COUNT_DEFAULT,
+         size_t ALIGN = EConfig::MEMORY_POOL_ALIGNMENT_DEFAULT>
+class Map {
+    using UID = UID<T>;
     struct Item {
-        UID uid = UID::Unassigned();
+        UID id = UID::Unassigned();
         T*  ptr = nullptr;
     };
 
-    using Allocator = Singleton<Allocator<sizeof(T), Setter>>;
-    
 public:
-    PooledStorage() {
-        if (Allocator::Instance() == nullptr) {
-            TypeLock<PooledStorage<T>, Setter::LockType> _;
-            if (Allocator::Instance() == nullptr) {
-                Allocator::CreateInstance();
+    using AllocatorType = Singleton<Allocator<Item, COUNT, ALIGN>, void>;
+    using Locker        = TypeLock<AllocatorType, Lock>;
+
+public:
+    ~Map() { 
+        for(typename std::unordered_map<size_t, UID*>::iterator itr = mine.begin(); itr != mine.end(); ++itr) {
+            itr->second->Release();
+        }
+    }
+
+public:
+    Map() {
+        if(AllocatorType::Instance() == nullptr) {
+            [[maybe_unused]] Locker _;
+            if(AllocatorType::Instance() == nullptr) {
+                AllocatorType::CreateInstance();
             }
         }
     }
 
 public:
+    static T* Find(ID id) {
+        [[maybe_unused]] Locker _;
+
+        if (id > items.size()) {
+            return nullptr;
+        }
+        size_t index = ID::Indexing(id);
+        if (items[index].id == ID::INVALID) {
+            return nullptr;
+        }
+        return items[index].ptr;
+    }
+
+public:
     ID Insert(T&& arg) {
-        TypeLock<PooledStorage<T>, Setter::LockType> _;
-        
-        const Memory::Usage& usage = Allocator::Instance()->GetUsage();
+        [[maybe_unused]] Locker _;
+
+        const Memory::Usage& usage = AllocatorType::Instance()->GetUsage();
 
         if(usage.chunk.usable == 0) {
-            if (Allocator::Instance()->Expand() == false) {
+            if(AllocatorType::Instance()->Expand() == false) {
                 return ID::Invalid();
             }
             items.resize(usage.chunk.total);
             owner.resize(usage.chunk.total);
         }
-        T* ptr = Allocator::Instance()->New<T>(arg);
-        
+        T* ptr = AllocatorType::Instance()->New<T, void>(arg);
+
         ID next = UID::Preview();
         if(next == ID::INVALID) {
             return ID::Invalid();
         }
         size_t index = ID::Indexing(next);
 
-        items[index].uid.Generate();
         items[index].ptr = ptr;
-
+        items[index].id.Generate();
         owner[index] = this;
+
+        mine[next] = &items[index].id;
 
         ++size;
         return next;
@@ -54,56 +82,51 @@ public:
 
 public:
     bool Erase(ID id) {
-        TypeLock<PooledStorage<T>, Setter::LockType> _;
+        [[maybe_unused]] Locker _;
 
         size_t index = ID::Indexing(id);
-        if (items[index].uid == ID::INVALID) {
+        if(items[index].id == ID::INVALID) {
             return false;
         }
 
-        Allocator::Instance()->Delete<T>(items[index].ptr);
-        items[index].ptr = nullptr;
-        items[index].uid.Release();
-
+        AllocatorType::Instance()->Delete<T, void>(items[index].ptr);
+        
+        mine[id]->Release();
         owner[index] = nullptr;
 
-        --size;
-
-        const Memory::Usage& usage = Allocator::Instance()->GetUsage();
-        if(usage.chunk.usable >= (Setter::CHUNK_COUNT * 3)) {
-            Allocator::Instance()->Reduce();
+        const Memory::Usage& usage = AllocatorType::Instance()->GetUsage();
+        if(usage.chunk.usable >= (COUNT * 3)) {
+            AllocatorType::Instance()->Reduce();
         }
 
+        --size;
         return true;
     }
 
 public:
-    size_t Size() { return size; }
-
-private:
-    T* Test(const ID& id) const {
-        size_t index = ID::Indexing(id);
-        if (owner[index] != this) {
-            return nullptr;
-        }
-        return items[index].ptr;
+    size_t Size() {
+        return size;
     }
 
 public:
-    T& operator[](const ID& id) { 
-        T* ptr = Test(id);
-        if(ptr) return *ptr;
-        throw std::out_of_range("Not found.");
+    T& operator[](const ID& id) {
+        size_t index = ID::Indexing(id);
+        if(owner[index] == this) {
+            T* ptr = items[index].ptr;
+            if(ptr) return *ptr;
+        }
+        throw std::runtime_error("Not found.");
     }
 
 private:
-    size_t size = 0;
-
-private:
-    static std::vector<Item>  items;
-    static std::vector<void*> owner;
+    static std::vector<Item>         items;
+    static std::vector<void*>        owner;
+    std::unordered_map<size_t, UID*> mine;
+    size_t                           size = 0;
 };
 
+template<typename T, class Lock, size_t COUNT, size_t ALIGN>
+std::vector<typename Map<T, Lock, COUNT, ALIGN>::Item> Map<T, Lock, COUNT, ALIGN>::items;
 
-template<typename T, class Set> std::vector<typename PooledStorage<T, Set>::Item> PooledStorage<T, Set>::items;
-template<typename T, class Set> std::vector<void*> PooledStorage<T, Set>::owner;
+template<typename T, class Lock, size_t COUNT, size_t ALIGN>
+std::vector<void*> Map<T, Lock, COUNT, ALIGN>::owner;
