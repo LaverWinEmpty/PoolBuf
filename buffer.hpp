@@ -6,7 +6,6 @@
 #include "allocator.hpp"
 #include "config.h"
 #include "lock.hpp"
-#include "singleton.hpp"
 
 /*
     buffer like char[N]
@@ -26,15 +25,13 @@
     std::cout << str;
  */
 
-template<size_t SIZE = EConfig::BUFFER_SIZE_DEFAULT,
-    class Lock = SpinLock,
+template<size_t SIZE = EConfig::BUFFER_SIZE_DEFAULT, class Mtx = SpinLock,
     size_t POOL_CHUNK_COUNT = EConfig::MEMORY_POOL_CHUNK_COUNT_DEFAULT,
     size_t POOL_ALIGNMENT = EConfig::MEMORY_POOL_ALIGNMENT_DEFAULT
 >
 class Buffer {
 public:
-    using AllocatorType = Pool<SIZE, POOL_CHUNK_COUNT, POOL_ALIGNMENT>;
-    using Locker        = TypeLock<AllocatorType, Lock>;
+    using AllocatorType = Allocator<Block<SIZE>, Mtx, POOL_CHUNK_COUNT, POOL_ALIGNMENT>;
 
 public:
     static constexpr size_t Size();
@@ -79,7 +76,13 @@ public:
 
 private:
     int8_t* ptr;
+
+private:
+    static AllocatorType pool;
 };
+
+template<size_t SIZE, class Mtx, size_t COUNT, size_t ALIGN>
+Buffer<SIZE, Mtx, COUNT, ALIGN>::AllocatorType Buffer<SIZE, Mtx, COUNT, ALIGN>::pool;
 
 #include "buffer.ipp"
 #endif

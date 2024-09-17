@@ -44,7 +44,6 @@
 
     std::lock_guard<SpinLock> l;
 */
-
 class SpinLock {
 public:
     NO_COPYABLE(SpinLock);
@@ -77,10 +76,7 @@ public:
 };
 
 /*
-    lock disable
-    but throw error in multi thread program
-
-    not throw: use void
+    void wrapper
 */
 class DisableLock {
 public:
@@ -90,47 +86,47 @@ public:
     void unlock();
 };
 
+template<typename T> struct Lock { using Type = T; };
+template<> struct Lock<void> { using Type = DisableLock; };
+
 template<class Mtx> class LockGuard {
 public:
-    NO_COPYABLE(LockGuard);
-    NO_MOVABLE(LockGuard);
+    using LockType = Lock<Mtx>::Type;
 
 public:
+    NO_COPYABLE(LockGuard);
     LockGuard(Mtx&);
     ~LockGuard();
 
 public:
-    Mtx& Locker();
+    LockType& Locker();
 
 private:
-    Mtx& mtx;
+    LockType& mtx;
 };
 
 template<class T, class Mtx = SpinLock> class TypeLock: public LockGuard<Mtx> {
 public:
+    using LockType = Lock<Mtx>::Type;
+
+public:
     TypeLock();
-    Mtx& Locker();
+    LockType& Locker();
 
 private:
-    static Mtx mtx;
+    static LockType mtx;
 };
 
 template<size_t N, class Mtx = SpinLock> class IndexLock: public LockGuard<Mtx> {
 public:
+    using LockType = Lock<Mtx>::Type;
+
+public:
     IndexLock();
-    Mtx& Locker();
+    LockType& Locker();
 
 private:
-    static Mtx mtx;
-};
-
-template<class T> class TypeLock<T, void> {};
-
-template<size_t N> class IndexLock<N, void> {};
-
-template<> class LockGuard<void> {
-public:
-    template<typename T> LockGuard(T&& arg);
+    static LockType mtx;
 };
 
 #include "lock.ipp"

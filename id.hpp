@@ -4,7 +4,6 @@
 #include <queue>
 
 #include "lock.hpp"
-#include "singleton.hpp"
 
 // default id
 struct ID {

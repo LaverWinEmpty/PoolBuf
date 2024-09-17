@@ -6,46 +6,43 @@ const Memory::Usage& Memory::GetUsage() const {
     return info;
 }
 
-template<size_t N, size_t COUNT, size_t ALIGN>
-template<class Lock>
-void* Pool<N, COUNT, ALIGN>::Malloc() {
-    [[maybe_unused]] TypeLock<Pool<N, COUNT, ALIGN>, Lock> _;
-    return GetChunck();
+template<typename T, class Mtx, size_t COUNT, size_t ALIGN>
+template<typename U>
+U* Allocator<T, Mtx, COUNT, ALIGN>::Allocate() {
+    [[maybe_unused]] LockGuard _(mtx);
+    return reinterpret_cast<U*>(GetChunck());
 }
 
-template<size_t N, size_t COUNT, size_t ALIGN>
-template<class Lock>
-void Pool<N, COUNT, ALIGN>::Free(void* ptr) {
-    [[maybe_unused]] TypeLock<Pool<N, COUNT, ALIGN>, Lock> _;
+template<typename T, class Mtx, size_t COUNT, size_t ALIGN>
+void Allocator<T, Mtx, COUNT, ALIGN>::Deallocate(void* ptr) {
+    [[maybe_unused]] LockGuard _(mtx);
     ReleaseChunk(ptr);
 }
 
-template<size_t N, size_t COUNT, size_t ALIGN>
-template<typename T, class Lock, typename... Args>
-T* Pool<N, COUNT, ALIGN>::New(Args&&... args) {
-    [[maybe_unused]] TypeLock<Pool<N, COUNT, ALIGN>, Lock> _;
+template<typename T, class Mtx, size_t COUNT, size_t ALIGN>
+template<typename... Args>
+T* Allocator<T, Mtx, COUNT, ALIGN>::Construct(Args&&... args) {
+    [[maybe_unused]] LockGuard _(mtx);
 
     T* ptr = static_cast<T*>(GetChunck());
     new(ptr) T(std::forward<Args>(args)...);
     return ptr;
 }
 
-template<size_t N, size_t COUNT, size_t ALIGN>
-template<typename T, class Lock>
-void Pool<N, COUNT, ALIGN>::Delete(T* ptr) {
-    [[maybe_unused]] TypeLock<Pool<N, COUNT, ALIGN>, Lock> _;
+template<typename T, class Mtx, size_t COUNT, size_t ALIGN>
+void Allocator<T, Mtx, COUNT, ALIGN>::Deconstruct(T* ptr) {
+    [[maybe_unused]] LockGuard _(mtx);
 
     ptr->~T();
     ReleaseChunk(ptr);
 }
 
-template<size_t N, size_t COUNT, size_t ALIGN>
-template<class Lock>
-size_t Pool<N, COUNT, ALIGN>::Expand(size_t count) {
+template<typename T, class Mtx, size_t COUNT, size_t ALIGN>
+size_t Allocator<T, Mtx, COUNT, ALIGN>::Expand(size_t count) {
     size_t created = 0;
 
     while(created < count) {
-        [[maybe_unused]] TypeLock<Pool<N, COUNT, ALIGN>, Lock> _;
+        [[maybe_unused]] LockGuard _(mtx);
         if(NewBlock() == false) {
             break;
         }
@@ -54,18 +51,17 @@ size_t Pool<N, COUNT, ALIGN>::Expand(size_t count) {
     return created;
 }
 
-template<size_t N, size_t COUNT, size_t ALIGN>
-template<class Lock>
-size_t Pool<N, COUNT, ALIGN>::Reduce() {
-    [[maybe_unused]] TypeLock<Pool<N, COUNT, ALIGN>, Lock> _;
+template<typename T, class Mtx, size_t COUNT, size_t ALIGN>
+size_t Allocator<T, Mtx, COUNT, ALIGN>::Reduce() {
+    [[maybe_unused]] LockGuard _(mtx);
 
     size_t before = freeable.size();
     FreeBlock();
     return before - freeable.size();
 }
 
-template<size_t N, size_t COUNT, size_t ALIGN>
-void* Pool<N, COUNT, ALIGN>::GetChunck() {
+template<typename T, class Mtx, size_t COUNT, size_t ALIGN>
+void* Allocator<T, Mtx, COUNT, ALIGN>::GetChunck() {
     if(top == nullptr) {
         if(freeable.empty()) {
             if(NewBlock() == false) {
@@ -94,7 +90,7 @@ void* Pool<N, COUNT, ALIGN>::GetChunck() {
     }
 
     // last
-    if(top->used == N) {
+    if(top->used == CHUNK_COUNT) {
         Segment* fulled = top;
 
         // new head
@@ -112,7 +108,7 @@ void* Pool<N, COUNT, ALIGN>::GetChunck() {
     return ret;
 }
 
-template<size_t N, size_t COUNT, size_t ALIGN> void Pool<N, COUNT, ALIGN>::ReleaseChunk(void* p) {
+template<typename T, class Mtx, size_t COUNT, size_t ALIGN> void Allocator<T, Mtx, COUNT, ALIGN>::ReleaseChunk(void* p) {
     Chunk*   ptr   = static_cast<Chunk*>(p);
     Segment* block = ptr->block;
 
@@ -129,7 +125,7 @@ template<size_t N, size_t COUNT, size_t ALIGN> void Pool<N, COUNT, ALIGN>::Relea
     ++info.chunk.usable;
 
     // empty -> usable
-    if(block->used == N - 1) {
+    if(block->used == CHUNK_COUNT - 1) {
         if(!top) {
             top = block;
         } else {
@@ -170,7 +166,7 @@ template<size_t N, size_t COUNT, size_t ALIGN> void Pool<N, COUNT, ALIGN>::Relea
     }
 }
 
-template<size_t N, size_t COUNT, size_t ALIGN> bool Pool<N, COUNT, ALIGN>::NewBlock() {
+template<typename T, class Mtx, size_t COUNT, size_t ALIGN> bool Allocator<T, Mtx, COUNT, ALIGN>::NewBlock() {
     Segment* newBlock = static_cast<Segment*>(_aligned_malloc(BLOCK_TOTAL_SIZE, ALIGNMENT));
     if(!newBlock) {
         return false;
@@ -209,7 +205,7 @@ template<size_t N, size_t COUNT, size_t ALIGN> bool Pool<N, COUNT, ALIGN>::NewBl
     return true;
 }
 
-template<size_t N, size_t COUNT, size_t ALIGN> void Pool<N, COUNT, ALIGN>::FreeBlock() {
+template<typename T, class Mtx, size_t COUNT, size_t ALIGN> void Allocator<T, Mtx, COUNT, ALIGN>::FreeBlock() {
     while(freeable.empty() == false) {
         all.erase(freeable.top());
 
@@ -226,9 +222,9 @@ template<size_t N, size_t COUNT, size_t ALIGN> void Pool<N, COUNT, ALIGN>::FreeB
     }
 }
 
-template<size_t N, size_t COUNT, size_t ALIGN> Pool<N, COUNT, ALIGN>::Pool(): Memory() {}
+template<typename T, class Mtx, size_t COUNT, size_t ALIGN> Allocator<T, Mtx, COUNT, ALIGN>::Allocator(): Memory() {}
 
-template<size_t N, size_t COUNT, size_t ALIGN> Pool<N, COUNT, ALIGN>::~Pool() {
+template<typename T, class Mtx, size_t COUNT, size_t ALIGN> Allocator<T, Mtx, COUNT, ALIGN>::~Allocator() {
     for(typename std::set<Segment*>::iterator itr = all.begin(); itr != all.end(); ++itr) {
         _aligned_free(*itr);
     }

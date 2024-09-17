@@ -81,39 +81,30 @@ template<class Mtx> LockGuard<Mtx>::~LockGuard() {
     mtx.unlock();
 }
 
-template<class Mtx> Mtx& LockGuard<Mtx>::Locker() {
+template<class Mtx> auto LockGuard<Mtx>::Locker() -> LockType& {
     return mtx;
 }
 
 template<class T, class Mtx> TypeLock<T, Mtx>::TypeLock(): LockGuard<Mtx>(mtx) {}
 
-template<class T, class Mtx> Mtx& TypeLock<T, Mtx>::Locker() {
+template<class T, class Mtx> auto TypeLock<T, Mtx>::Locker() -> LockType& {
     return mtx;
 }
 
 template<size_t N, class Mtx> IndexLock<N, Mtx>::IndexLock(): LockGuard<Mtx>(mtx) {}
 
-template<size_t N, class Mtx> Mtx& IndexLock<N, Mtx>::Locker() {
+template<size_t N, class Mtx> auto IndexLock<N, Mtx>::Locker() -> LockType& {
     return mtx;
 }
 
-template<typename T> LockGuard<void>::LockGuard(T&& arg) {}
+template<class T, class Mtx> Lock<Mtx>::Type TypeLock<T, Mtx>::mtx;
+template<size_t N, class Mtx> Lock<Mtx>::Type IndexLock<N, Mtx>::mtx;
 
-template<class T, class Mtx> Mtx  TypeLock<T, Mtx>::mtx;
-template<size_t N, class Mtx> Mtx IndexLock<N, Mtx>::mtx;
-
-void DisableLock::Lock() {
-    static const std::thread::id FIRST_THREAD = std::this_thread::get_id();
-    if(std::this_thread::get_id() != FIRST_THREAD) {
-        throw std::runtime_error("Race condition detected");
-    }
-}
+void DisableLock::Lock() {}
 
 void DisableLock::Unlock() {}
 
-void DisableLock::lock() {
-    Lock();
-}
+void DisableLock::lock() {}
 
 void DisableLock::unlock() {}
 
