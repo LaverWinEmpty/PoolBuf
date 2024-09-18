@@ -1,5 +1,8 @@
-#include "id.hpp"
+#ifndef LWE_MAP_HPP
+#define LWE_MAP_HPP
+
 #include "allocator.hpp"
+#include "id.hpp"
 
 #include <unordered_map>
 
@@ -18,93 +21,43 @@ public:
     using Locker        = TypeLock<Map<T, Mtx, COUNT, ALIGN>, Mtx>;
 
 public:
-    ~Map() {
-        for(typename std::unordered_map<size_t, UID*>::iterator itr = mine.begin(); itr != mine.end(); ++itr) {
-            itr->second->Release();
-        }
-    }
+    struct Iterator {
+        friend class Map;
+
+    public:
+        Iterator(size_t index);
+        Iterator(const Iterator& ref);
+        Iterator& operator=(const Iterator& ref);
+
+    public:
+        bool operator==(const Iterator& ref);
+        bool operator!=(const Iterator& ref);
+        Iterator& operator++();
+        Iterator& operator--();
+        Iterator operator++(int);
+        Iterator operator--(int);
+
+    public:
+        T& operator*();
+        T* operator->();
+
+    private:
+        size_t index = 0;
+    };
 
 public:
-    static T* Find(ID id) {
-        [[maybe_unused]] TypeLock<> _;
-
-        if(id > items.size()) {
-            return nullptr;
-        }
-        size_t index = ID::Indexing(id);
-        if(items[index].id == ID::INVALID) {
-            return nullptr;
-        }
-        return items[index].ptr;
-    }
+    ~Map();
 
 public:
-    ID Insert(T&& arg) {
-        [[maybe_unused]] Locker _;
-
-        const Memory::Usage& usage = pool.GetUsage();
-
-        if(usage.chunk.usable == 0) {
-            if(pool.Expand() == false) {
-                return ID::Invalid();
-            }
-            items.resize(usage.chunk.total);
-            owner.resize(usage.chunk.total);
-        }
-
-        T* ptr = reinterpret_cast<T*>(pool.Construct(arg));
-
-        ID next = UID::Preview();
-        if(next == ID::INVALID) {
-            return ID::Invalid();
-        }
-        size_t index = ID::Indexing(next);
-
-        items[index].ptr = ptr;
-        items[index].id.Generate();
-        owner[index] = this;
-
-        mine[next] = &items[index].id;
-
-        ++size;
-        return next;
-    }
+    Iterator Begin();
+    Iterator End();
+    bool     IsMine(const Iterator& itr);
+    size_t   Size();
 
 public:
-    bool Erase(ID id) {
-        [[maybe_unused]] Locker _;
-
-        size_t index = ID::Indexing(id);
-        if(items[index].id == ID::INVALID) {
-            return false;
-        }
-
-        pool.Deconstruct(items[index].ptr);
-
-        mine[id]->Release();
-        owner[index] = nullptr;
-
-        const Memory::Usage& usage = pool.GetUsage();
-        if(usage.chunk.usable >= (COUNT * 3)) {
-            pool.Reduce();
-        }
-
-        --size;
-        return true;
-    }
-
-public:
-    size_t Size() { return size; }
-
-public:
-    T& operator[](const ID& id) {
-        size_t index = ID::Indexing(id);
-        if(owner[index] == this) {
-            T* ptr = items[index].ptr;
-            if(ptr) return *ptr;
-        }
-        throw std::runtime_error("Not found.");
-    }
+    ID   Insert(T&& arg);
+    bool Erase(ID id);
+    T&   operator[](const ID& id);
 
 private:
     static AllocatorType             pool;
@@ -114,10 +67,5 @@ private:
     size_t                           size = 0;
 };
 
-template<typename T, class Lock, size_t COUNT, size_t ALIGN>
-Map<T, Lock, COUNT, ALIGN>::AllocatorType Map<T, Lock, COUNT, ALIGN>::pool;
-
-template<typename T, class Lock, size_t COUNT, size_t ALIGN>
-std::vector<typename Map<T, Lock, COUNT, ALIGN>::Item> Map<T, Lock, COUNT, ALIGN>::items;
-
-template<typename T, class Lock, size_t COUNT, size_t ALIGN> std::vector<void*> Map<T, Lock, COUNT, ALIGN>::owner;
+#include "map.ipp"
+#endif
