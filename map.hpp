@@ -12,8 +12,9 @@ template<typename T, class Mtx = SpinLock, size_t COUNT = EConfig::MEMORY_POOL_C
 class Map {
     using UID = UID<T>;
     struct Item {
-        UID id  = UID::Unassigned();
-        T*  ptr = nullptr;
+        UID   id  = UID::Unassigned();
+        T*    ptr = nullptr;
+        void* owner = nullptr;
     };
 
 public:
@@ -62,7 +63,6 @@ public:
 private:
     static AllocatorType             pool;
     static std::vector<Item>         items;
-    static std::vector<void*>        owner;
     std::unordered_map<size_t, UID*> mine;
     size_t                           size = 0;
 };

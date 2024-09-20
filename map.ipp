@@ -6,8 +6,6 @@ Map<T, Mtx, COUNT, ALIGN>::AllocatorType Map<T, Mtx, COUNT, ALIGN>::pool;
 template<typename T, class Mtx, size_t COUNT, size_t ALIGN>
 std::vector<typename Map<T, Mtx, COUNT, ALIGN>::Item> Map<T, Mtx, COUNT, ALIGN>::items;
 
-template<typename T, class Mtx, size_t COUNT, size_t ALIGN> std::vector<void*> Map<T, Mtx, COUNT, ALIGN>::owner;
-
 template<typename T, class Mtx, size_t COUNT, size_t ALIGN>
 Map<T, Mtx, COUNT, ALIGN>::Iterator::Iterator(size_t index): index(index) {}
 
@@ -107,7 +105,6 @@ template<typename T, class Mtx, size_t COUNT, size_t ALIGN> ID Map<T, Mtx, COUNT
             return ID::Invalid();
         }
         items.resize(usage.chunk.total);
-        owner.resize(usage.chunk.total);
     }
 
     T* ptr = reinterpret_cast<T*>(pool.Construct(arg));
@@ -120,7 +117,7 @@ template<typename T, class Mtx, size_t COUNT, size_t ALIGN> ID Map<T, Mtx, COUNT
 
     items[index].ptr = ptr;
     items[index].id.Generate();
-    owner[index] = this;
+    items[index].owner = this;
 
     mine[next] = &items[index].id;
 
@@ -138,7 +135,7 @@ template<typename T, class Mtx, size_t COUNT, size_t ALIGN> bool Map<T, Mtx, COU
 
     pool.Deconstruct(items[index].ptr);
 
-    owner[index] = nullptr;
+    items[index].owner = nullptr;
     mine[id]->Release();
     mine.erase(id);
 
@@ -153,7 +150,7 @@ template<typename T, class Mtx, size_t COUNT, size_t ALIGN> bool Map<T, Mtx, COU
 
 template<typename T, class Mtx, size_t COUNT, size_t ALIGN> T& Map<T, Mtx, COUNT, ALIGN>::operator[](const ID& id) {
     size_t index = ID::Indexing(id);
-    if(owner[index] == this) {
+    if(items[index].owner == this) {
         T* ptr = items[index].ptr;
         if(ptr) return *ptr;
     }
