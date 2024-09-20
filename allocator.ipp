@@ -114,7 +114,7 @@ template<typename T, class Mtx, size_t COUNT, size_t ALIGN> void Allocator<T, Mt
 
     // check
     if(this != block->pool) {
-        throw std::runtime_error("IT DOES NOT BELONG.");
+        throw std::runtime_error("Not part of this.");
     }
 
     ptr->next   = block->head; // linking

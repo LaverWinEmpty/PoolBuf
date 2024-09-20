@@ -13,7 +13,9 @@ public:
 public:
     static constexpr Value INVALID = 0;
     static ID              Invalid();
-    static size_t          Indexing(ID);
+    static ID              FromIndex(size_t);
+    static size_t          ToIndex(ID);
+
 
 public:
     explicit ID(Value = INVALID);

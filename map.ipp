@@ -1,160 +1,208 @@
 #ifdef LWE_MAP_HPP
 
-template<typename T, class Mtx, size_t COUNT, size_t ALIGN>
-Map<T, Mtx, COUNT, ALIGN>::AllocatorType Map<T, Mtx, COUNT, ALIGN>::pool;
-
-template<typename T, class Mtx, size_t COUNT, size_t ALIGN>
-std::vector<typename Map<T, Mtx, COUNT, ALIGN>::Item> Map<T, Mtx, COUNT, ALIGN>::items;
-
-template<typename T, class Mtx, size_t COUNT, size_t ALIGN>
-Map<T, Mtx, COUNT, ALIGN>::Iterator::Iterator(size_t index): index(index) {}
-
-template<typename T, class Mtx, size_t COUNT, size_t ALIGN>
-Map<T, Mtx, COUNT, ALIGN>::Iterator::Iterator(const Iterator& ref): index(ref.index) {}
-
-template<typename T, class Mtx, size_t COUNT, size_t ALIGN>
-auto Map<T, Mtx, COUNT, ALIGN>::Iterator::operator=(const Iterator& ref) -> Iterator& {
-    index = ref.index;
-    return *this;
-}
-
-template<typename T, class Mtx, size_t COUNT, size_t ALIGN>
-bool Map<T, Mtx, COUNT, ALIGN>::Iterator::operator==(const Iterator& ref) {
-    return index == ref.index;
-}
-
-template<typename T, class Mtx, size_t COUNT, size_t ALIGN>
-bool Map<T, Mtx, COUNT, ALIGN>::Iterator::operator!=(const Iterator& ref) {
-    return index != ref.index;
-}
-
-template<typename T, class Mtx, size_t COUNT, size_t ALIGN>
-auto Map<T, Mtx, COUNT, ALIGN>::Iterator::operator++() -> Iterator& {
-    if(index >= items.size()) return *this;
-    do {
-        ++index;
-    } while(index < items.size() && items[index].id == ID::INVALID);
-    return *this;
-}
-
-template<typename T, class Mtx, size_t COUNT, size_t ALIGN>
-auto Map<T, Mtx, COUNT, ALIGN>::Iterator::operator--() -> Iterator& {
-    if(index == 0) return *this;
-    do {
-        --index;
-    } while(index > 0 && items[index].id == ID::INVALID);
-    return *this;
-}
-
-template<typename T, class Mtx, size_t COUNT, size_t ALIGN>
-auto Map<T, Mtx, COUNT, ALIGN>::Iterator::operator++(int) -> Iterator {
-    Iterator temp = *this;
-    ++(*this);
-    return temp;
-}
-
-template<typename T, class Mtx, size_t COUNT, size_t ALIGN>
-auto Map<T, Mtx, COUNT, ALIGN>::Iterator::operator--(int) -> Iterator {
-    Iterator temp = *this;
-    --(*this);
-    return temp;
-}
-
-template<typename T, class Mtx, size_t COUNT, size_t ALIGN> T& Map<T, Mtx, COUNT, ALIGN>::Iterator::operator*() {
-    return *items[index].ptr;
-}
-
-template<typename T, class Mtx, size_t COUNT, size_t ALIGN> T* Map<T, Mtx, COUNT, ALIGN>::Iterator::operator->() {
-    return items[index].ptr;
-}
-
-template<typename T, class Mtx, size_t COUNT, size_t ALIGN> Map<T, Mtx, COUNT, ALIGN>::~Map() {
-    for(typename std::unordered_map<size_t, UID*>::iterator itr = mine.begin(); itr != mine.end(); ++itr) {
-        itr->second->Release();
+template<typename T> Map<T>::~Map() {
+    size_t loop = table.size();
+    for(size_t i = 0; i < loop; ++i) {
+        Disable(table[i]);
     }
 }
 
-template<typename T, class Mtx, size_t COUNT, size_t ALIGN> auto Map<T, Mtx, COUNT, ALIGN>::Begin() -> Iterator {
-    size_t index = 0;
-    while(items[index].id == ID::INVALID) {
-        ++index;
-    }
-    return Iterator(index);
+template<typename T> bool Map<T>::Exist(ID id) {
+    return container[ID::ToIndex(id)].parent == this;
 }
 
-template<typename T, class Mtx, size_t COUNT, size_t ALIGN> auto Map<T, Mtx, COUNT, ALIGN>::End() -> Iterator {
-    return Iterator(items.size());
+template<typename T> bool Map<T>::Exist(Iterator itr) {
+    return itr.item.parent == this;
 }
 
-template<typename T, class Mtx, size_t COUNT, size_t ALIGN> inline size_t Map<T, Mtx, COUNT, ALIGN>::Size() {
-    return size;
-}
-
-template<typename T, class Mtx, size_t COUNT, size_t ALIGN>
-bool Map<T, Mtx, COUNT, ALIGN>::IsMine(const Iterator& itr) {
-    return mine.find(itr.index + 1) != mine.end();
-}
-
-template<typename T, class Mtx, size_t COUNT, size_t ALIGN> ID Map<T, Mtx, COUNT, ALIGN>::Insert(T&& arg) {
-    [[maybe_unused]] Locker _;
-
-    const Memory::Usage& usage = pool.GetUsage();
-
-    if(usage.chunk.usable == 0) {
-        if(pool.Expand() == false) {
-            return ID::Invalid();
-        }
-        items.resize(usage.chunk.total);
-    }
-
-    T* ptr = reinterpret_cast<T*>(pool.Construct(arg));
-
-    ID next = UID::Preview();
-    if(next == ID::INVALID) {
+template<typename T> ID Map<T>::Insert(T&& arg) {
+    ID id = Enable(std::forward<T>(arg));
+    if(id == ID::INVALID) {
         return ID::Invalid();
     }
-    size_t index = ID::Indexing(next);
 
-    items[index].ptr = ptr;
-    items[index].id.Generate();
-    items[index].owner = this;
+    size_t index = ID::ToIndex(id);
 
-    mine[next] = &items[index].id;
+    container[index].parent = this;         // set
+    container[index].index  = table.size(); // back
 
-    ++size;
+    table.push_back(id); // push
+
+    return id;
+}
+
+template<typename T> bool Map<T>::Erase(ID id) {
+    if(id > container.size() || container[ID::ToIndex(id)].prent != this) {
+        return false;
+    }
+    return Disable(id);
+}
+
+template<typename T> size_t Map<T>::Size() const {
+    return table.size();
+}
+
+template<typename T> T& Map<T>::operator[](ID id) {
+    Item* temp = Find(id);
+    if(!temp || temp->parent != this) {
+        throw std::out_of_range("Not found.");
+    }
+    return *temp->instance;
+}
+
+template<typename T> T& Map<T>::operator[](size_t index) {
+    Item* temp = Find(table[index]);
+    if(!temp || temp->parent != this) {
+        throw std::out_of_range("Not found.");
+    }
+    return *temp->instance;
+}
+
+template<typename T> const T& Map<T>::operator[](ID id) const {
+    return const_cast<const T&>(const_cast<Map>(*this)[id]);
+}
+
+template<typename T> const T& Map<T>::operator[](size_t index) const {
+    return const_cast<const T&>(const_cast<Map>(*this)[index]);
+}
+
+template<typename T> auto Map<T>::Find(ID id) -> Item* {
+    Item* ret = nullptr;
+    if(id <= container.size()) {
+        ret = &container[ID::ToIndex(id)];
+        if(ret->id == ID::INVALID) {
+            ret = nullptr;
+        }
+    }
+    return ret;
+}
+
+template<typename T> ID Map<T>::Enable(T&& arg) {
+    // check
+    ID next = UID<T>::Preview();
+    if(next == ID::INVALID) {
+        return next;
+    }
+
+    // check and allocate
+    if(allocator.GetUsage().chunk.usable == 0) {
+        container.resize(container.size() + allocator.CHUNK_COUNT);
+        if(allocator.Expand() == false) {
+            return ID::Invalid(); // malloc failed
+        }
+    }
+
+    // next 1 => [0].id = 1
+    Item& item = container[ID::ToIndex(next)];
+
+    // allocate
+    item.id.Generate(); // enable, this id == next
+    item.instance = allocator.Construct<T>(std::forward<T>(arg));
+
     return next;
 }
 
-template<typename T, class Mtx, size_t COUNT, size_t ALIGN> bool Map<T, Mtx, COUNT, ALIGN>::Erase(ID id) {
-    [[maybe_unused]] Locker _;
-
-    size_t index = ID::Indexing(id);
-    if(items[index].id == ID::INVALID) {
+template<typename T> bool Map<T>::Disable(ID id) {
+    if(id > container.size()) {
         return false;
     }
 
-    pool.Deconstruct(items[index].ptr);
-
-    items[index].owner = nullptr;
-    mine[id]->Release();
-    mine.erase(id);
-
-    const Memory::Usage& usage = pool.GetUsage();
-    if(usage.chunk.usable >= (COUNT * 3)) {
-        pool.Reduce();
+    Item& item = container[ID::ToIndex(id)];
+    if(item.id == ID::INVALID) {
+        return false;
     }
 
-    --size;
+    Map* map = item.parent;
+    if(map) {
+        std::vector<ID>& table = map->table;
+
+        // get pos
+        size_t erase = item.index;
+        size_t back  = table.size() - 1;
+
+        // back pos to erase pos
+        container[ID::ToIndex(table[back])].index = erase;
+
+        // swap
+        ID temp      = table[erase];
+        table[erase] = table[back];
+        table[back]  = temp;
+
+        // after pop back
+        table.pop_back();
+    }
+
+    // not actually deallocated
+    allocator.Deconstruct(item.instance);
+    item.id.Release(); // disable
+    item.parent = nullptr;
+
     return true;
 }
 
-template<typename T, class Mtx, size_t COUNT, size_t ALIGN> T& Map<T, Mtx, COUNT, ALIGN>::operator[](const ID& id) {
-    size_t index = ID::Indexing(id);
-    if(items[index].owner == this) {
-        T* ptr = items[index].ptr;
-        if(ptr) return *ptr;
+template<typename T> auto Map<T>::Begin() -> Iterator {
+    size_t index = 0;
+    size_t loop  = container.size();
+    while(index < loop && container[index].id == ID::INVALID) {
+        ++index;
     }
-    throw std::runtime_error("Not found.");
+    return Iterator(&container[index]);
 }
+
+template<typename T> auto Map<T>::End() -> Iterator {
+    return Iterator(&container[0] + container.size());
+}
+
+template<typename T> Map<T>::Iterator::Iterator(Item* item): item(item) {}
+template<typename T> Map<T>::Iterator::Iterator(const Iterator& ref): item(ref.item) {}
+
+template<typename T> bool Map<T>::Iterator::operator==(const Iterator& ref) const {
+    return item == ref.item;
+}
+
+template<typename T> bool Map<T>::Iterator::operator!=(const Iterator& ref) const {
+    return item != ref.item;
+}
+
+template<typename T> auto Map<T>::Iterator::operator++() -> Iterator& {
+    Item* end = &container[0] + container.size();
+    if(item != end) {
+        do {
+            ++item;
+        } while(item != end && item->id == ID::INVALID); // pass
+    }
+    return *this;
+}
+
+template<typename T> auto Map<T>::Iterator::operator--() -> Iterator& {
+    Item* begin = &container[0];
+    if(item != begin) {
+        do {
+            --item;
+        } while(item != begin && item->id == ID::INVALID); // pass
+    }
+    return *this;
+}
+
+template<typename T> auto Map<T>::Iterator::operator++(int) -> Iterator {
+    Iterator itr = *this;
+    ++*this;
+    return itr;
+}
+
+template<typename T> auto Map<T>::Iterator::operator--(int) -> Iterator {
+    Iterator itr = *this;
+    --*this;
+    return itr;
+}
+
+template<typename T> T* Map<T>::Iterator::operator->() {
+    return item->instance;
+}
+
+template<typename T> T& Map<T>::Iterator::operator*() {
+    return *item->instance;
+}
+
 
 #endif

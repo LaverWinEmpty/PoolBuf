@@ -7,7 +7,11 @@ ID ID::Invalid() {
     return ID(INVALID);
 }
 
-size_t ID::Indexing(ID arg) {
+ID ID::FromIndex(size_t arg) {
+    return ID(arg + 1);
+}
+
+size_t ID::ToIndex(ID arg) {
     return arg - 1;
 }
 

@@ -4,67 +4,72 @@
 #include "allocator.hpp"
 #include "id.hpp"
 
-#include <unordered_map>
-
-// pooled storage
-template<typename T, class Mtx = SpinLock, size_t COUNT = EConfig::MEMORY_POOL_CHUNK_COUNT_DEFAULT,
-         size_t ALIGN = EConfig::MEMORY_POOL_ALIGNMENT_DEFAULT>
-class Map {
-    using UID = UID<T>;
+template<typename T> class Map {
+public:
     struct Item {
-        UID   id  = UID::Unassigned();
-        T*    ptr = nullptr;
-        void* owner = nullptr;
-    };
-
-public:
-    using AllocatorType = Allocator<T, void, COUNT, ALIGN>;
-    using Locker        = TypeLock<Map<T, Mtx, COUNT, ALIGN>, Mtx>;
-
-public:
-    struct Iterator {
-        friend class Map;
-
-    public:
-        Iterator(size_t index);
-        Iterator(const Iterator& ref);
-        Iterator& operator=(const Iterator& ref);
-
-    public:
-        bool operator==(const Iterator& ref);
-        bool operator!=(const Iterator& ref);
-        Iterator& operator++();
-        Iterator& operator--();
-        Iterator operator++(int);
-        Iterator operator--(int);
-
-    public:
-        T& operator*();
-        T* operator->();
+        T* instance = nullptr;
 
     private:
-        size_t index = 0;
+        friend class Map;
+        UID<T> id     = UID<T>::Unassigned();
+        size_t index  = 0;
+        Map*   parent = nullptr;
+    };
+
+private:
+    std::vector<ID> table;
+
+private:
+    inline static std::vector<Item> container;
+    inline static Allocator<T>      allocator;
+
+public:
+    // global data iterator
+    struct Iterator {
+        friend class Map;
+        Iterator(Item*);
+        Iterator(const Iterator&);
+        bool      operator==(const Iterator&) const;
+        bool      operator!=(const Iterator&) const;
+        Iterator& operator++();
+        Iterator& operator--();
+        Iterator  operator++(int);
+        Iterator  operator--(int);
+        T*        operator->();
+        T&        operator*();
+    private:
+        Item* item;
     };
 
 public:
     ~Map();
 
 public:
-    Iterator Begin();
-    Iterator End();
-    bool     IsMine(const Iterator& itr);
-    size_t   Size();
+    bool Exist(ID);
+    bool Exist(Iterator);
 
 public:
-    ID   Insert(T&& arg);
-    bool Erase(ID id);
-    T&   operator[](const ID& id);
+    ID     Insert(T&&);
+    bool   Erase(ID);
+    size_t Size() const;
 
-private:
-    static AllocatorType             pool;
-    static std::vector<Item>         items;
-    std::unordered_map<size_t, UID*> mine;
-    size_t                           size = 0;
+public:
+    static size_t Count();
+
+public:
+    static Item* Find(ID);
+    static ID    Enable(T&&);
+    static bool  Disable(ID);
+
+public:
+    static Iterator Begin();
+    static Iterator End();
+
+public:
+    T& operator[](ID);
+    T& operator[](size_t);
+    const T& operator[](ID) const;
+    const T& operator[](size_t) const;
 };
 
 #include "map.ipp"
