@@ -8,9 +8,12 @@
 #include "lock.hpp"
 
 /*
+    Lock
+    - Constructor   (allocator)
+    - Deconstructor (allocator)
+
     buffer like char[N]
     use memory pool
-
 
     use
 

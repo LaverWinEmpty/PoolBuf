@@ -9,6 +9,14 @@
 #include "type.h"
 
 /*
+    Lock
+    - Allocate    : ptr = malloc(sizeof(T))
+    - Deallocate  : free(ptr)
+    - Construct   : ptr = new T
+    - Deconstruct : delete ptr
+    - Expand      : create block
+    - Reduce      : release block
+
     MemoryPool<64, 8, 8>
     ┌────┬────┬────┐
     │ 40 │ 72 │ 72 │
@@ -18,6 +26,7 @@
     │ 72 │ 72 │ 72 │
     └────┴────┴────┘
     = 616 byte
+    (64 + 8 + 72)
 
     MemoryPool<32, 8, 64>
     ┌────┬────┬────┐
@@ -28,6 +37,16 @@
     │ 64 │ 64 │ 64 │
     └────┴────┴────┘
     = 576 byte
+    (32 + 8 = 40, padding 24)
+
+    MemoryPool<30, 3, 0> Expand(4)
+    ┌────┬────┐ ┌────┬────┐ ┌────┬────┐ ┌────┬────┐
+    │ 40 │ 38 │ │ 40 │ 38 │ │ 40 │ 38 │ │ 40 │ 38 │
+    ├────┼────┤ ├────┼────┤ ├────┼────┤ ├────┼────┤
+    │ 38 │ 38 │ │ 38 │ 38 │ │ 38 │ 38 │ │ 38 │ 38 │
+    └────┴────┘ └────┴────┘ └────┴────┘ └────┴────┘
+    = 114 byte * 4 
+    (30 + 8 = 38)
 
     detail
     head

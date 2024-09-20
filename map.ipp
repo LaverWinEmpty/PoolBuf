@@ -1,22 +1,23 @@
 #ifdef LWE_MAP_HPP
 
-template<typename T> Map<T>::~Map() {
+template<typename T, class Mtx, size_t COUNT, size_t ALIGN> Map<T, Mtx, COUNT, ALIGN>::~Map() {
     size_t loop = table.size();
     for(size_t i = 0; i < loop; ++i) {
         Disable(table[i]);
     }
 }
 
-template<typename T> bool Map<T>::Exist(ID id) {
+template<typename T, class Mtx, size_t COUNT, size_t ALIGN> bool Map<T, Mtx, COUNT, ALIGN>::Exist(ID id) {
     return container[ID::ToIndex(id)].parent == this;
 }
 
-template<typename T> bool Map<T>::Exist(Iterator itr) {
+template<typename T, class Mtx, size_t COUNT, size_t ALIGN> bool Map<T, Mtx, COUNT, ALIGN>::Exist(Iterator itr) {
     return itr.item.parent == this;
 }
 
-template<typename T> ID Map<T>::Insert(T&& arg) {
+template<typename T, class Mtx, size_t COUNT, size_t ALIGN> ID Map<T, Mtx, COUNT, ALIGN>::Insert(T&& arg) {
     ID id = Enable(std::forward<T>(arg));
+
     if(id == ID::INVALID) {
         return ID::Invalid();
     }
@@ -31,18 +32,18 @@ template<typename T> ID Map<T>::Insert(T&& arg) {
     return id;
 }
 
-template<typename T> bool Map<T>::Erase(ID id) {
+template<typename T, class Mtx, size_t COUNT, size_t ALIGN> bool Map<T, Mtx, COUNT, ALIGN>::Erase(ID id) {
     if(id > container.size() || container[ID::ToIndex(id)].prent != this) {
         return false;
     }
     return Disable(id);
 }
 
-template<typename T> size_t Map<T>::Size() const {
+template<typename T, class Mtx, size_t COUNT, size_t ALIGN> size_t Map<T, Mtx, COUNT, ALIGN>::Size() const {
     return table.size();
 }
 
-template<typename T> T& Map<T>::operator[](ID id) {
+template<typename T, class Mtx, size_t COUNT, size_t ALIGN> T& Map<T, Mtx, COUNT, ALIGN>::operator[](ID id) {
     Item* temp = Find(id);
     if(!temp || temp->parent != this) {
         throw std::out_of_range("Not found.");
@@ -50,7 +51,7 @@ template<typename T> T& Map<T>::operator[](ID id) {
     return *temp->instance;
 }
 
-template<typename T> T& Map<T>::operator[](size_t index) {
+template<typename T, class Mtx, size_t COUNT, size_t ALIGN> T& Map<T, Mtx, COUNT, ALIGN>::operator[](size_t index) {
     Item* temp = Find(table[index]);
     if(!temp || temp->parent != this) {
         throw std::out_of_range("Not found.");
@@ -58,15 +59,16 @@ template<typename T> T& Map<T>::operator[](size_t index) {
     return *temp->instance;
 }
 
-template<typename T> const T& Map<T>::operator[](ID id) const {
+template<typename T, class Mtx, size_t COUNT, size_t ALIGN> const T& Map<T, Mtx, COUNT, ALIGN>::operator[](ID id) const {
     return const_cast<const T&>(const_cast<Map>(*this)[id]);
 }
 
-template<typename T> const T& Map<T>::operator[](size_t index) const {
+template<typename T, class Mtx, size_t COUNT, size_t ALIGN> const T& Map<T, Mtx, COUNT, ALIGN>::operator[](size_t index) const {
     return const_cast<const T&>(const_cast<Map>(*this)[index]);
 }
 
-template<typename T> auto Map<T>::Find(ID id) -> Item* {
+template<typename T, class Mtx, size_t COUNT, size_t ALIGN> 
+auto Map<T, Mtx, COUNT, ALIGN>::Find(ID id) -> Item* {
     Item* ret = nullptr;
     if(id <= container.size()) {
         ret = &container[ID::ToIndex(id)];
@@ -77,7 +79,10 @@ template<typename T> auto Map<T>::Find(ID id) -> Item* {
     return ret;
 }
 
-template<typename T> ID Map<T>::Enable(T&& arg) {
+template<typename T, class Mtx, size_t COUNT, size_t ALIGN> 
+ID Map<T, Mtx, COUNT, ALIGN>::Enable(T&& arg) {
+    LockGuard _(mtx);
+
     // check
     ID next = UID<T>::Preview();
     if(next == ID::INVALID) {
@@ -102,7 +107,10 @@ template<typename T> ID Map<T>::Enable(T&& arg) {
     return next;
 }
 
-template<typename T> bool Map<T>::Disable(ID id) {
+template<typename T, class Mtx, size_t COUNT, size_t ALIGN>
+bool Map<T, Mtx, COUNT, ALIGN>::Disable(ID id) {
+    LockGuard _(mtx);
+
     if(id > container.size()) {
         return false;
     }
@@ -140,7 +148,8 @@ template<typename T> bool Map<T>::Disable(ID id) {
     return true;
 }
 
-template<typename T> auto Map<T>::Begin() -> Iterator {
+template<typename T, class Mtx, size_t COUNT, size_t ALIGN>
+auto Map<T, Mtx, COUNT, ALIGN>::Begin() -> Iterator {
     size_t index = 0;
     size_t loop  = container.size();
     while(index < loop && container[index].id == ID::INVALID) {
@@ -149,22 +158,23 @@ template<typename T> auto Map<T>::Begin() -> Iterator {
     return Iterator(&container[index]);
 }
 
-template<typename T> auto Map<T>::End() -> Iterator {
+template<typename T, class Mtx, size_t COUNT, size_t ALIGN>
+auto Map<T, Mtx, COUNT, ALIGN>::End() -> Iterator {
     return Iterator(&container[0] + container.size());
 }
 
-template<typename T> Map<T>::Iterator::Iterator(Item* item): item(item) {}
-template<typename T> Map<T>::Iterator::Iterator(const Iterator& ref): item(ref.item) {}
+template<typename T, class Mtx, size_t COUNT, size_t ALIGN> Map<T, Mtx, COUNT, ALIGN>::Iterator::Iterator(Item* item): item(item) {}
+template<typename T, class Mtx, size_t COUNT, size_t ALIGN> Map<T, Mtx, COUNT, ALIGN>::Iterator::Iterator(const Iterator& ref): item(ref.item) {}
 
-template<typename T> bool Map<T>::Iterator::operator==(const Iterator& ref) const {
+template<typename T, class Mtx, size_t COUNT, size_t ALIGN> bool Map<T, Mtx, COUNT, ALIGN>::Iterator::operator==(const Iterator& ref) const {
     return item == ref.item;
 }
 
-template<typename T> bool Map<T>::Iterator::operator!=(const Iterator& ref) const {
+template<typename T, class Mtx, size_t COUNT, size_t ALIGN> bool Map<T, Mtx, COUNT, ALIGN>::Iterator::operator!=(const Iterator& ref) const {
     return item != ref.item;
 }
 
-template<typename T> auto Map<T>::Iterator::operator++() -> Iterator& {
+template<typename T, class Mtx, size_t COUNT, size_t ALIGN> auto Map<T, Mtx, COUNT, ALIGN>::Iterator::operator++() -> Iterator& {
     Item* end = &container[0] + container.size();
     if(item != end) {
         do {
@@ -174,7 +184,7 @@ template<typename T> auto Map<T>::Iterator::operator++() -> Iterator& {
     return *this;
 }
 
-template<typename T> auto Map<T>::Iterator::operator--() -> Iterator& {
+template<typename T, class Mtx, size_t COUNT, size_t ALIGN> auto Map<T, Mtx, COUNT, ALIGN>::Iterator::operator--() -> Iterator& {
     Item* begin = &container[0];
     if(item != begin) {
         do {
@@ -184,23 +194,23 @@ template<typename T> auto Map<T>::Iterator::operator--() -> Iterator& {
     return *this;
 }
 
-template<typename T> auto Map<T>::Iterator::operator++(int) -> Iterator {
+template<typename T, class Mtx, size_t COUNT, size_t ALIGN> auto Map<T, Mtx, COUNT, ALIGN>::Iterator::operator++(int) -> Iterator {
     Iterator itr = *this;
     ++*this;
     return itr;
 }
 
-template<typename T> auto Map<T>::Iterator::operator--(int) -> Iterator {
+template<typename T, class Mtx, size_t COUNT, size_t ALIGN> auto Map<T, Mtx, COUNT, ALIGN>::Iterator::operator--(int) -> Iterator {
     Iterator itr = *this;
     --*this;
     return itr;
 }
 
-template<typename T> T* Map<T>::Iterator::operator->() {
+template<typename T, class Mtx, size_t COUNT, size_t ALIGN> T* Map<T, Mtx, COUNT, ALIGN>::Iterator::operator->() {
     return item->instance;
 }
 
-template<typename T> T& Map<T>::Iterator::operator*() {
+template<typename T, class Mtx, size_t COUNT, size_t ALIGN> T& Map<T, Mtx, COUNT, ALIGN>::Iterator::operator*() {
     return *item->instance;
 }
 

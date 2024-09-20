@@ -4,7 +4,16 @@
 #include "allocator.hpp"
 #include "id.hpp"
 
-template<typename T> class Map {
+/*
+    Lock: write static method
+    - Enable
+    - Disable
+*/
+
+template<typename T, class Mtx = SpinLock,
+    size_t COUNT = EConfig::MEMORY_POOL_CHUNK_COUNT_DEFAULT,
+    size_t ALIGN = EConfig::MEMORY_POOL_CHUNK_COUNT_DEFAULT>
+class Map {
 public:
     struct Item {
         T* instance = nullptr;
@@ -20,8 +29,9 @@ private:
     std::vector<ID> table;
 
 private:
-    inline static std::vector<Item> container;
-    inline static Allocator<T>      allocator;
+    inline static std::vector<Item>                container;
+    inline static Allocator<T, void, COUNT, ALIGN> allocator;
+    inline static Lock<Mtx>::Type                  mtx;
 
 public:
     // global data iterator
@@ -54,14 +64,11 @@ public:
     size_t Size() const;
 
 public:
-    static size_t Count();
-
-public:
-    static Item* Find(ID);
     static ID    Enable(T&&);
     static bool  Disable(ID);
 
 public:
+    static Item*    Find(ID);
     static Iterator Begin();
     static Iterator End();
 
