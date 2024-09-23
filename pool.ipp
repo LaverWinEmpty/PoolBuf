@@ -141,7 +141,12 @@ template <typename T, size_t N, size_t A> auto Pool<T, N, A>::Search(ID id) -> I
     if (id > container.size()) {
         return nullptr;
     }
-    return &container[ID::ToIndex(id)];
+
+    Item* item = &container[ID::ToIndex(id)];
+    if (item->id == ID::INVALID) {
+        item = nullptr;
+    }
+    return item;
 }
 
 template <typename T, size_t N, size_t A> T* Pool<T, N, A>::operator[](ID id) {

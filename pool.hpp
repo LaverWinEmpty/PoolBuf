@@ -8,7 +8,8 @@ template <typename T, size_t POOL_CHUNK_COUNT = EConfig::MEMORY_POOL_CHUNK_COUNT
           size_t POOL_ALIGNMENT = EConfig::MEMORY_POOL_ALIGNMENT_DEFAULT>
 class Pool {
 public:
-    using UniqueID = UID<Pool<T>>;
+    using Allocator = Allocator<T, void, POOL_CHUNK_COUNT, POOL_ALIGNMENT>;
+    using UniqueID  = UID<Pool<T>>;
 
     struct Item {
         friend class Pool;
@@ -21,14 +22,10 @@ public:
         UniqueID id = UniqueID::Unassigned();
     };
 
-    using Allocator = Allocator<T, void, POOL_CHUNK_COUNT, POOL_ALIGNMENT>;
-    using Container = std::vector<Item>;
-    using Converter = std::vector<ID>;
-
 private:
-    inline static Allocator allocator;
-    inline static Container container;
-    Converter               converter;
+    inline static Allocator         allocator;
+    inline static std::vector<Item> container;
+    std::vector<ID>                 converter;
 
 public:
     struct Iterator {
