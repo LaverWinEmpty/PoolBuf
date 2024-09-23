@@ -157,6 +157,11 @@ template <typename T, size_t N, size_t A> T* Pool<T, N, A>::operator[](ID id) {
     return nullptr;
 }
 
+template <typename T, size_t N, size_t A> T* Pool<T, N, A>::operator[](size_t index) {
+    if (index >= converter.size()) return nullptr;
+    return container[ID::ToIndex(converter[index])];
+}
+
 template <typename T, size_t N, size_t A> void Pool<T, N, A>::Clean() {
     size_t loop = container.size();
 
@@ -167,11 +172,6 @@ template <typename T, size_t N, size_t A> void Pool<T, N, A>::Clean() {
             allocator.Deconstruct(item->instance);
         }
     }
-}
-
-template <typename T, size_t N, size_t A> T* Pool<T, N, A>::operator[](size_t index) {
-    if (index >= converter.size()) return nullptr;
-    return container[ID::ToIndex(converter[index])];
 }
 
 template <typename T, size_t N, size_t A>
