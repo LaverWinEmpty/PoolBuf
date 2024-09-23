@@ -2,10 +2,6 @@
 
 #ifdef LWE_UTILITIES_ALLOCATOR_HPP
 
-const Memory::Usage& Memory::GetUsage() const {
-    return info;
-}
-
 template<typename T, class Mtx, size_t COUNT, size_t ALIGN>
 template<typename U>
 U* Allocator<T, Mtx, COUNT, ALIGN>::Allocate() {
@@ -80,13 +76,13 @@ void* Allocator<T, Mtx, COUNT, ALIGN>::GetChunck() {
 
     ++top->used;
 
-    ++info.chunk.used;
-    --info.chunk.usable;
+    ++usage.chunk.used;
+    --usage.chunk.usable;
 
     // first
     if(top->used == 1) {
-        --info.block.full;
-        ++info.block.used;
+        --usage.block.full;
+        ++usage.block.used;
     }
 
     // last
@@ -101,8 +97,8 @@ void* Allocator<T, Mtx, COUNT, ALIGN>::GetChunck() {
         fulled->next = nullptr;
         fulled->prev = nullptr;
 
-        ++info.block.empty;
-        --info.block.used;
+        ++usage.block.empty;
+        --usage.block.used;
     }
 
     return ret;
@@ -121,8 +117,8 @@ template<typename T, class Mtx, size_t COUNT, size_t ALIGN> void Allocator<T, Mt
     block->head = p;           // push
 
     --block->used;
-    --info.chunk.used;
-    ++info.chunk.usable;
+    --usage.chunk.used;
+    ++usage.chunk.usable;
 
     // empty -> usable
     if(block->used == CHUNK_COUNT - 1) {
@@ -134,8 +130,8 @@ template<typename T, class Mtx, size_t COUNT, size_t ALIGN> void Allocator<T, Mt
             block->next->prev = block; // double linked
         }
 
-        --info.block.empty;
-        ++info.block.used;
+        --usage.block.empty;
+        ++usage.block.used;
     }
 
     // full -> unlink
@@ -161,8 +157,8 @@ template<typename T, class Mtx, size_t COUNT, size_t ALIGN> void Allocator<T, Mt
 
         freeable.push(block);
 
-        ++info.block.full;
-        --info.block.used;
+        ++usage.block.full;
+        --usage.block.used;
     }
 }
 
@@ -191,13 +187,13 @@ template<typename T, class Mtx, size_t COUNT, size_t ALIGN> bool Allocator<T, Mt
     cursor->next  = nullptr;
     cursor->block = newBlock;
 
-    info.block.total  += 1;
-    info.block.full   += 1;
-    info.chunk.total  += CHUNK_COUNT;
-    info.chunk.usable += CHUNK_COUNT;
+    usage.block.total  += 1;
+    usage.block.full   += 1;
+    usage.chunk.total  += CHUNK_COUNT;
+    usage.chunk.usable += CHUNK_COUNT;
 
-    info.block.byte += BLOCK_TOTAL_SIZE - sizeof(AlignedSegment);
-    info.chunk.byte += CHUNK_SIZE * CHUNK_COUNT;
+    usage.block.byte += BLOCK_TOTAL_SIZE - sizeof(AlignedSegment);
+    usage.chunk.byte += CHUNK_SIZE * CHUNK_COUNT;
 
     if(top) freeable.push(newBlock);
     else top = newBlock;
@@ -212,13 +208,13 @@ template<typename T, class Mtx, size_t COUNT, size_t ALIGN> void Allocator<T, Mt
         _aligned_free(freeable.top());
         freeable.pop();
 
-        info.block.full   -= 1;
-        info.block.total  -= 1;
-        info.chunk.usable -= CHUNK_COUNT;
-        info.chunk.total  -= CHUNK_COUNT;
+        usage.block.full   -= 1;
+        usage.block.total  -= 1;
+        usage.chunk.usable -= CHUNK_COUNT;
+        usage.chunk.total  -= CHUNK_COUNT;
 
-        info.block.byte -= BLOCK_TOTAL_SIZE - sizeof(AlignedSegment);
-        info.chunk.byte -= CHUNK_SIZE * CHUNK_COUNT;
+        usage.block.byte -= BLOCK_TOTAL_SIZE - sizeof(AlignedSegment);
+        usage.chunk.byte -= CHUNK_SIZE * CHUNK_COUNT;
     }
 }
 
@@ -230,6 +226,6 @@ template<typename T, class Mtx, size_t COUNT, size_t ALIGN> Allocator<T, Mtx, CO
     }
 }
 
-Memory::Memory(): info{ 0 } {}
+Memory::Memory(): INFO(usage) {}
 
 #endif

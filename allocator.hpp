@@ -123,14 +123,14 @@ public:
 protected:
     Memory();
 
-public:
-    const Usage& GetUsage() const;
-
 protected:
     Segment*             top = nullptr;
     std::stack<Segment*> freeable;
     std::set<Segment*>   all;
-    Usage                info;
+    Usage                usage = { 0 };
+
+public:
+    const Usage& INFO;
 };
 
 template<typename T, class Mtx = void,
@@ -155,7 +155,7 @@ public:
     Allocator();
     ~Allocator();
 
-protected:
+private:
     void* GetChunck();
     void  ReleaseChunk(void*);
     bool  NewBlock();
