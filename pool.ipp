@@ -25,7 +25,7 @@ auto Pool<T, N, A>::GetAllocator() const -> const Allocator& {
 template <typename T, size_t N, size_t A> Pool<T, N, A>::~Pool() { Clear(); }
 
 template <typename T, size_t N, size_t A> auto Pool<T, N, A>::Search(ID id) -> Item* {
-    if (id > container.size()) {
+    if (id == ID::INVALID && id > container.size()) {
         return nullptr;
     }
     return &container[ID::ToIndex(id)];
@@ -186,7 +186,7 @@ template <typename T, size_t N, size_t A> void Pool<T, N, A>::Clear() {
     allocator.Reduce();
 }
 
-template <typename T, size_t N, size_t A> auto Pool<T, N, A>::Parent(ID id) -> Pool* {
+template <typename T, size_t N, size_t A> auto Pool<T, N, A>::Owner(ID id) -> Pool* {
     Item* item = Search();
     if (item && item->id) {
         return item->parent;
