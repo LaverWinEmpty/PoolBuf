@@ -22,8 +22,8 @@ public:
         T* instance;
 
     public:
-        template <typename Arg> void Enable(Arg&&);
-        void                         Disable();
+        template <typename Arg> void OnCreate(Arg&&);
+        void                         OnRelease();
 
     private:
         Pool*    parent = nullptr;
@@ -73,14 +73,15 @@ public:
 
 public:
     template <typename Arg> ID        Insert(Arg&&); // insert
-    template <typename Arg> static ID Enable(Arg&&); // allocated
+    template <typename Arg> static ID Create(Arg&&); // allocated
     size_t                            Take(ID);      // set owner
 
 public:
-    bool        Erase(ID);    // erase
-    static bool Disable(ID);  // deallocate
-    ID          Lost(size_t); // reset owner
-    static bool Leak(ID);     // reset owner
+    bool        Erase(ID);                     // erase
+    static bool Release(ID);                   // deallocate
+    bool        Give(ID, Pool* = nullptr);     // reset owner
+    bool        Give(size_t, Pool* = nullptr); // reset owner
+    static bool Lost(ID);                      // reset owner
 
 public:
     static T* Find(ID);     // find, null: not found

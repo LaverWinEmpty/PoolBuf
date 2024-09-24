@@ -87,5 +87,7 @@ private:
 template<size_t SIZE, class Mtx, size_t COUNT, size_t ALIGN>
 Buffer<SIZE, Mtx, COUNT, ALIGN>::AllocatorType Buffer<SIZE, Mtx, COUNT, ALIGN>::pool;
 
+using Packet = Buffer<EConfig::BUFFER_SIZE_DEFAULT>;
+
 #include "buffer.ipp"
 #endif

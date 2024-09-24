@@ -7,12 +7,12 @@ std::vector<typename Pool<T, N, A>::Item> Pool<T, N, A>::container;
 
 template <typename T, size_t B, size_t A>
 template <typename Arg>
-void Pool<T, B, A>::Item::Enable(Arg&& arg) {
-    instance = static_cast<T*>(Pool::allocator.Construct(arg));
+void Pool<T, B, A>::Item::OnCreate(Arg&& arg) {
+    instance = Pool::allocator.Construct<T>(arg);
     id.Generate();
 }
 
-template <typename T, size_t B, size_t A> void Pool<T, B, A>::Item::Disable() {
+template <typename T, size_t B, size_t A> void Pool<T, B, A>::Item::OnRelease() {
     id.Release();
     Pool::allocator.Deconstruct(static_cast<Type*>(instance));
 }
@@ -46,14 +46,14 @@ template <typename T, size_t N, size_t A> auto Pool<T, N, A>::End() -> Iterator 
 template <typename T, size_t N, size_t A>
 template <typename Arg>
 ID Pool<T, N, A>::Insert(Arg&& arg) {
-    ID id = Enable(arg);
+    ID id = Create(arg);
     Take(id);
     return id;
 }
 
 template <typename T, size_t N, size_t A>
 template <typename Arg>
-ID Pool<T, N, A>::Enable(Arg&& arg) {
+ID Pool<T, N, A>::Create(Arg&& arg) {
     ID next = UniqueID::Preview();
     if (next == ID::INVALID) {
         return ID::Invalid();
@@ -78,7 +78,7 @@ template <typename T, size_t N, size_t A> size_t Pool<T, N, A>::Take(ID id) {
     Item* item = Search(id);
     if (item) {
         if (item->parent != nullptr) {
-            return item->index; // current index
+            return last; // already have parent => return out of tange index
         }
 
         converter.push_back(id); // set last
@@ -98,41 +98,54 @@ template <typename T, size_t N, size_t A> bool Pool<T, N, A>::Erase(ID id) {
         return false;
     }
 
-    return Disable(id);
+    return Release(id);
 }
 
-template <typename T, size_t N, size_t A> bool Pool<T, N, A>::Disable(ID id) {
+template <typename T, size_t N, size_t A> bool Pool<T, N, A>::Release(ID id) {
     Item* item = Search(id);
     if (!item) {
         return false;
     }
 
     if (item->parent) {
-        item->parent->Lost(item->index);
+        item->parent->Give(item->index);
     }
     item->Disable();
 
     return true;
 }
 
-template <typename T, size_t N, size_t A> ID Pool<T, N, A>::Lost(size_t index) {
+template <typename T, size_t N, size_t A> bool Pool<T, N, A>::Give(ID id, Pool* other) {
+    Item* item = Search(id);
+    if (!item && item->parent != this) {
+        return false;
+    }
+    return Give(item->index, other);
+}
+
+template <typename T, size_t N, size_t A> bool Pool<T, N, A>::Give(size_t index, Pool* other) {
     size_t last = converter.size() - 1;
     if (index > last) {
-        return ID::Invalid();
+        return false;
     }
 
     ID temp          = converter[index]; // store
     converter[index] = converter[last];  // change
     converter.resize(last);              // delete
 
-    container[ID::ToIndex(temp)].parent = nullptr; // lost
-    return temp;
+    // give
+    container[ID::ToIndex(temp)].parent = nullptr;
+    if (other) {
+        other.Take(index);
+    }
+
+    return true;
 }
 
-template <typename T, size_t N, size_t A> bool Pool<T, N, A>::Leak(ID id) {
+template <typename T, size_t N, size_t A> bool Pool<T, N, A>::Lost(ID id) {
     Item* item = Search(id);
     if (item && item->parent) {
-        item->parent->Lost(item->index);
+        item->parent->Give(item->index);
         return true;
     }
     return false;
@@ -195,7 +208,13 @@ template <typename T, size_t N, size_t A> void Pool<T, N, A>::Clean() {
     allocator.Reduce();
 }
 
-template <typename T, size_t N, size_t A> T* Pool<T, N, A>::operator[](ID id) { return Find(id); }
+template <typename T, size_t N, size_t A> T* Pool<T, N, A>::operator[](ID id) {
+    Item* item = Search(id);
+    if (item->parent != this) {
+        return nullptr;
+    }
+    return item->instance;
+}
 
 template <typename T, size_t N, size_t A> T* Pool<T, N, A>::operator[](size_t index) {
     if (index >= converter.size()) return nullptr;

@@ -162,10 +162,10 @@ private:
     void  FreeBlock();
 
 public:
-    template<typename U = T> U*   Allocate();
-    template<typename... Args> T* Construct(Args&&...);
-    void                          Deallocate(void*);
-    void                          Deconstruct(T* ptr);
+    template<typename U = T> U*                   Allocate();
+    template<typename U = T, typename... Args> U* Construct(Args&&...);
+    template<typename U = T> void                 Deconstruct(U* ptr);
+    template<typename U = T> void                 Deallocate(U*);
 
 public:
     size_t Expand(size_t = 1);
