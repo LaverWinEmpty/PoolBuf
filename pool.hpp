@@ -9,8 +9,11 @@
 template <typename T, size_t POOL_CHUNK_COUNT = EConfig::MEMORY_POOL_CHUNK_COUNT_DEFAULT,
           size_t POOL_ALIGNMENT = EConfig::MEMORY_POOL_ALIGNMENT_DEFAULT>
 class Pool {
+private:
+    struct Type : public T {}; // for new allocator instance
+
 public:
-    using Allocator = Allocator<T, void, POOL_CHUNK_COUNT, POOL_ALIGNMENT>;
+    using Allocator = Allocator<Type, void, POOL_CHUNK_COUNT, POOL_ALIGNMENT>;
     using UniqueID  = UID<Pool<T>>;
 
     struct Item {
@@ -19,8 +22,8 @@ public:
         T* instance;
 
     public:
-        template<typename Arg> void Enable(Arg&&);
-        void Disable();
+        template <typename Arg> void Enable(Arg&&);
+        void                         Disable();
 
     private:
         Pool*    parent = nullptr;
@@ -59,14 +62,14 @@ public:
     };
 
 public:
-    static Iterator Begin();
-    static Iterator End();
-
-public:
     ~Pool();
 
+private:
+    static Item* Search(ID); // get item, null: not found
+
 public:
-    bool Owner(const Iterator&) const;
+    static Iterator Begin();
+    static Iterator End();
 
 public:
     template <typename Arg> ID        Insert(Arg&&); // insert
@@ -77,19 +80,18 @@ public:
     bool        Erase(ID);    // erase
     static bool Disable(ID);  // deallocate
     ID          Lost(size_t); // reset owner
-    void        Clear();      // clear
+    static bool Leak(ID);     // reset owner
 
 public:
-    static T* Find(ID);        // find, null: not found
-    bool      Exist(ID) const; // check owner
-    size_t    Size() const;    // size
-    void      Sort();          // member id sort
-
-private:
-    static Item* Search(ID); // get item, null: not found
+    static T* Find(ID);     // find, null: not found
+    size_t    Size() const; // size
+    void      Sort();       // member id sort
 
 public:
-    static void Clean(); // delete parent is null items
+    bool         Exist(ID) const; // check owner
+    void         Clear();         // clear
+    static Pool* Parent(ID);      // get parent
+    static void  Clean();         // delete no parent items
 
 public:
     T* operator[](ID);
