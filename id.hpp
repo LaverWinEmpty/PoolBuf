@@ -16,7 +16,6 @@ public:
     static ID              FromIndex(size_t);
     static size_t          ToIndex(ID);
 
-
 public:
     explicit ID(Value = INVALID);
     ID(const ID&);

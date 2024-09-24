@@ -1,6 +1,8 @@
 #ifndef LWE_POOL_HPP
 #define LWE_POOL_HPP
 
+#include <algorithm>
+
 #include "allocator.hpp"
 #include "id.hpp"
 
@@ -16,16 +18,23 @@ public:
         friend struct Iterator;
         T* instance;
 
+    public:
+        template<typename Arg> void Enable(Arg&&);
+        void Disable();
+
     private:
-        Pool*    parent;
-        size_t   index;
-        UniqueID id = UniqueID::Unassigned();
+        Pool*    parent = nullptr;
+        size_t   index  = 0;
+        UniqueID id     = UniqueID::Unassigned();
     };
 
 private:
-    inline static Allocator         allocator;
-    inline static std::vector<Item> container;
-    std::vector<ID>                 converter;
+    static Allocator         allocator;
+    static std::vector<Item> container;
+    std::vector<ID>          converter;
+
+private:
+    const Allocator& GetAllocator() const;
 
 public:
     struct Iterator {
@@ -43,6 +52,7 @@ public:
         bool      operator!=(const Pool* const) const;
         T*        operator->();
         T&        operator*();
+        operator ID() const;
 
     private:
         Item* item;
@@ -67,11 +77,13 @@ public:
     bool        Erase(ID);    // erase
     static bool Disable(ID);  // deallocate
     ID          Lost(size_t); // reset owner
+    void        Clear();      // clear
 
 public:
     static T* Find(ID);        // find, null: not found
     bool      Exist(ID) const; // check owner
     size_t    Size() const;    // size
+    void      Sort();          // member id sort
 
 private:
     static Item* Search(ID); // get item, null: not found
