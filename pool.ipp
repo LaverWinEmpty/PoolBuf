@@ -19,7 +19,7 @@ template <typename T, size_t N, size_t A> auto Pool<T, N, A>::Begin() -> Iterato
     for (size_t i = 0; i < container.size() && item->id == ID::INVALID; ++i) {
         ++item;
     }
-    return Iterator(&container[0]);
+    return item;
 }
 
 template <typename T, size_t N, size_t A> auto Pool<T, N, A>::End() -> Iterator {
