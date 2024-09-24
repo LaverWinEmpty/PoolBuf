@@ -119,7 +119,7 @@ template <typename T, size_t N, size_t A> bool Pool<T, N, A>::Erase(ID id) {
 
 template <typename T, size_t N, size_t A> T* Pool<T, N, A>::Find(ID id) {
     Item* item = Search(id);
-    if (item) {
+    if (item && item->id) {
         return item->instance;
     }
     return nullptr;
@@ -141,20 +141,11 @@ template <typename T, size_t N, size_t A> auto Pool<T, N, A>::Search(ID id) -> I
     if (id > container.size()) {
         return nullptr;
     }
-
-    Item* item = &container[ID::ToIndex(id)];
-    if (item->id == ID::INVALID) {
-        item = nullptr;
-    }
-    return item;
+    return &container[ID::ToIndex(id)];
 }
 
 template <typename T, size_t N, size_t A> T* Pool<T, N, A>::operator[](ID id) {
-    Item* item = Search(id);
-    if (!item) {
-        return item->instance;
-    }
-    return nullptr;
+    return Find(id);
 }
 
 template <typename T, size_t N, size_t A> T* Pool<T, N, A>::operator[](size_t index) {
@@ -210,6 +201,26 @@ bool Pool<T, N, A>::Iterator::operator==(const Iterator& ref) const {
 template <typename T, size_t N, size_t A>
 bool Pool<T, N, A>::Iterator::operator!=(const Iterator& ref) const {
     return item != ref.item;
+}
+
+template <typename T, size_t N, size_t A>
+bool Pool<T, N, A>::Iterator::operator==(const Pool& pool) const {
+    return item->parent == &pool;
+}
+
+template <typename T, size_t N, size_t A>
+bool Pool<T, N, A>::Iterator::operator!=(const Pool& pool) const {
+    return item->parent != &pool;
+}
+
+template <typename T, size_t N, size_t A>
+bool Pool<T, N, A>::Iterator::operator==(const Pool* const pool) const {
+    return item->parent == pool;
+}
+
+template <typename T, size_t N, size_t A>
+bool Pool<T, N, A>::Iterator::operator!=(const Pool* const pool) const {
+    return item->parent != pool;
 }
 
 template <typename T, size_t N, size_t A> T* Pool<T, N, A>::Iterator::operator->() {

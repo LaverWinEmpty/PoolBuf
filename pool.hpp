@@ -37,6 +37,10 @@ public:
         Iterator  operator++(int);
         bool      operator==(const Iterator&) const;
         bool      operator!=(const Iterator&) const;
+        bool      operator==(const Pool&) const;
+        bool      operator!=(const Pool&) const;
+        bool      operator==(const Pool* const) const;
+        bool      operator!=(const Pool* const) const;
         T*        operator->();
         T&        operator*();
 
