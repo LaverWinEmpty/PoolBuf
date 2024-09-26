@@ -1,9 +1,9 @@
 #ifndef LWE_ID_HPP
 #define LWE_ID_HPP
 
+#include <algorithm>
+#include <stdexcept>
 #include <queue>
-
-#include "lock.hpp"
 
 // default id
 struct ID {
@@ -13,20 +13,12 @@ public:
 public:
     static constexpr Value INVALID = 0;
     static ID              Invalid();
-    static ID              FromIndex(size_t);
-    static size_t          ToIndex(ID);
 
 public:
     explicit ID(Value = INVALID);
     ID(const ID&);
     ID& operator=(const ID&);
     operator Value() const;
-
-public:
-    bool operator==(const ID& id) const { return value == id.value; }
-    bool operator!=(const ID& id) const { return value != id.value; }
-    bool operator>(const ID& id) const { return value > id.value; }
-    bool operator<(const ID& id) const { return value < id.value; }
 
 public:
     ID& operator++();
@@ -55,12 +47,34 @@ public:
     private:
         Value next = 1;
         Cache cache;
-        bool  end = false;
+        bool  terminated = false;
+    };
+
+public:
+    class Set {
+    private:
+        void   Sort();
+        size_t Search(ID);
+        size_t Search(ID, size_t, size_t);
+
+    public:
+        bool   Insert(ID);
+        bool   Erase(ID);
+        size_t Size();
+
+    public:
+        ID operator[](size_t);
+
+    private:
+        std::vector<ID> container;
+        size_t          begin = 0; // sort begin position
+        size_t          end   = 0; // sort end postion;
+        Value           max   = INVALID;
     };
 };
 
 // unique id
-template<class T = void> class UID {
+template <class T = void> class UID {
 public:
     using Value                    = ID::Value;
     static constexpr Value INVALID = ID::INVALID;
@@ -97,6 +111,18 @@ public:
 
 private:
     static ID::Manager gid; // grouped id
+};
+
+template <typename T> struct Identifier {
+    Identifier();
+    Identifier(const T&);
+    Identifier(const Identifier&);
+    Identifier(Identifier&&) noexcept;
+    Identifier& operator=(const Identifier&);
+    Identifier& operator=(Identifier&&) noexcept;
+
+    UID<T> id;
+    T      instance;
 };
 
 #include "id.ipp"

@@ -6,15 +6,17 @@
 #include "allocator.hpp"
 #include "id.hpp"
 
-template <typename T, size_t POOL_CHUNK_COUNT = EConfig::MEMORY_POOL_CHUNK_COUNT_DEFAULT,
-          size_t POOL_ALIGNMENT = EConfig::MEMORY_POOL_ALIGNMENT_DEFAULT>
+template <typename T, size_t POOL_CHUNK_COUNT = EConfig::MEMORY_ALLOCATE_DEFAULT,
+          size_t POOL_ALIGNMENT = EConfig::MEMORY_ALIGNMENT_DEFAULT>
 class Pool {
-private:
-    struct Type : public T {}; // for new allocator instance
+public:
+    struct Allocate {
+        T _; // for new allocator instancea
+    }; 
 
 public:
-    using Allocator = Allocator<Type, void, POOL_CHUNK_COUNT, POOL_ALIGNMENT>;
-    using UniqueID  = UID<Pool<T>>;
+    using Allocator = Allocator<Allocate, void, POOL_CHUNK_COUNT, POOL_ALIGNMENT>;
+    using UniqueID  = UID<T>;
 
     struct Item {
         friend class Pool;
@@ -26,15 +28,23 @@ public:
         void                         OnRelease();
 
     private:
-        Pool*    parent = nullptr;
-        size_t   index  = 0;
-        UniqueID id     = UniqueID::Unassigned();
+        UniqueID id  = UniqueID::Unassigned();
+        size_t   ref = 0;
+    };kf
+
+public:
+    class Flag {
+        Flag(ID);
+
+    public:
+        size_t arr, bit;
     };
 
 private:
     static Allocator         allocator;
     static std::vector<Item> container;
     std::vector<ID>          converter;
+    std::vector<size_t>      checker;
 
 private:
     const Allocator& GetAllocator() const;
@@ -72,31 +82,34 @@ public:
     static Iterator End();
 
 public:
-    template <typename Arg> ID        Insert(Arg&&); // insert
     template <typename Arg> static ID Create(Arg&&); // allocated
+    template <typename Arg> ID        Insert(Arg&&); // insert
     size_t                            Take(ID);      // set owner
 
 public:
-    bool        Erase(ID);                     // erase
-    static bool Release(ID);                   // deallocate
-    bool        Give(ID, Pool* = nullptr);     // reset owner
-    bool        Give(size_t, Pool* = nullptr); // reset owner
-    static bool Lost(ID);                      // reset owner
+    static bool Release(ID); // deallocate
+    bool        Erase(ID);   // erase
+    bool        Lost(ID);    // reset owner
+    void        Leak();      // lost all
 
 public:
-    static T* Find(ID);     // find, null: not found
-    size_t    Size() const; // size
-    void      Sort();       // member id sort
+    T*     Find(ID);     // find, null: not found
+    size_t Size() const; // size
+    void   Sort();       // member id sort
 
 public:
-    bool         Exist(ID) const; // check owner
-    void         Clear();         // clear
-    static Pool* Parent(ID);      // get parent
-    static void  Clean();         // delete no parent items
+    bool        Exist(ID) const; // check owner
+    void        Clear();         // clear
+    static void Clean();         // clear no onwer instance
 
 public:
     T* operator[](ID);
     T* operator[](size_t);
+
+public:
+    static Identifier<T> Extern(ID);
+    static bool          Intern(Identifier<T>&&);
+    bool                 Include(Identifier<T>&&);
 };
 
 #include "pool.ipp"
