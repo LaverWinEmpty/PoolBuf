@@ -15,7 +15,7 @@ void Allocator<T, Mtx, COUNT, ALIGN>::Deallocate(U* ptr) {
     if (ptr == nullptr) return;
 
     [[maybe_unused]] LockGuard _(mtx);
-    ReleaseChunk(static_cast<void*>(ptr));
+    ReleaseChunk(reinterpret_cast<void*>(ptr));
 }
 
 template<typename T, class Mtx, size_t COUNT, size_t ALIGN>
@@ -25,7 +25,7 @@ U* Allocator<T, Mtx, COUNT, ALIGN>::Construct(Args&&... args) {
 
     T* ptr = static_cast<T*>(GetChunck());
     new(ptr) T(std::forward<Args>(args)...);
-    return static_cast<U*>(ptr);
+    return reinterpret_cast<U*>(ptr);
 }
 
 template<typename T, class Mtx, size_t COUNT, size_t ALIGN>
@@ -34,7 +34,7 @@ void Allocator<T, Mtx, COUNT, ALIGN>::Deconstruct(U* ptr) {
     if (ptr == nullptr) return;
 
     [[maybe_unused]] LockGuard _(mtx);
-    static_cast<T*>(ptr)->~T();
+    reinterpret_cast<T*>(ptr)->~T();
     ReleaseChunk(ptr);
 }
 

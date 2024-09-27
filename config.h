@@ -12,4 +12,15 @@ enum {
 };
 
 } // namespace EConfig
+
+namespace ECode {
+
+enum {
+    UNKNOWN_ERROR = -1,
+    INVALID_INDEX = -1,
+    INVALID_ID    =  0,
+};
+
+};
+
 #endif

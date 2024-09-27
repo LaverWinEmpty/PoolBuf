@@ -111,8 +111,8 @@ public:
 
 public:
     template<typename T, class Mtx = SpinLock,
-        size_t COUNT = EConfig::MEMORY_ALLOCATE_DEFAULT,
-        size_t ALIGN = EConfig::MEMORY_ALIGNMENT_DEFAULT>
+        size_t COUNT = Config::MEMORY_ALLOCATE_DEFAULT,
+        size_t ALIGN = Config::MEMORY_ALIGNMENT_DEFAULT>
     struct Setting {
         using LockType = Lock<Mtx>::Type;
         static constexpr size_t CHUNK_COUNT = COUNT;
@@ -134,8 +134,8 @@ public:
 };
 
 template<typename T, class Mtx = void,
-    size_t COUNT = EConfig::MEMORY_ALLOCATE_DEFAULT,
-    size_t ALIGN = EConfig::MEMORY_ALIGNMENT_DEFAULT>
+    size_t COUNT = Config::MEMORY_ALLOCATE_DEFAULT,
+    size_t ALIGN = Config::MEMORY_ALIGNMENT_DEFAULT>
 class Allocator: public Memory {
     using Setter = Setting<T, Mtx, COUNT, ALIGN>;
 

@@ -3,9 +3,22 @@
 
 template <class T> ID::Manager UID<T>::gid;
 
-ID ID::Invalid() { return ID(INVALID); }
+std::vector<std::optional<uint64_t>> ID::hashed = { std::hash<ID::Value>()(0) };
 
-ID::ID(Value arg) : value(arg) {}
+uint64_t ID::Hash::operator()(ID id) const {
+    return *hashed[Value(id)];
+}
+
+ID ID::Invalid() { return ID(ECode::INVALID_ID); }
+
+ID::ID(Value arg) : value(arg) {
+    if (arg >= hashed.size()) {
+        hashed.resize(arg + 1);
+    }
+    if (!hashed[arg]) {
+        hashed[arg] = std::hash<Value>()(arg);
+    }
+}
 
 ID::ID(const ID& arg) : value(arg.value) {}
 
@@ -16,44 +29,22 @@ ID& ID::operator=(const ID& ref) {
 
 ID::operator Value() const { return value; }
 
-ID& ID::operator++() {
-    ++value;
-    return *this;
-}
-
-ID& ID::operator--() {
-    --value;
-    return *this;
-}
-
-ID ID::operator++(int) {
-    ID id = ID{value};
-    ++value;
-    return id;
-}
-
-ID ID::operator--(int) {
-    ID id = ID{value};
-    --value;
-    return id;
-}
-
 template <class T> void UID<T>::Generate() {
-    if (id == INVALID) {
+    if (id == ECode::INVALID_ID) {
         id = gid.Generate();
     }
 }
 
 template <class T> void UID<T>::Release() {
-    if (id != INVALID) {
+    if (id != ECode::INVALID_ID) {
         gid.Release(id);
-        id = ID(INVALID);
+        id = ID::Invalid();
     }
 }
 
 template <class T> UID<T> UID<T>::Next() { return UID(gid.Generate()); }
 
-template <class T> UID<T> UID<T>::Unassigned() { return UID(INVALID); }
+template <class T> UID<T> UID<T>::Unassigned() { return UID(static_cast<Value>(ECode::INVALID_ID)); }
 
 template <class T> UID<T>::UID(Value arg) : id(arg) {}
 
@@ -65,7 +56,7 @@ template <class T> UID<T>::UID(bool init) {
 
 template <class T> UID<T>::UID(UID&& arg) noexcept {
     id     = arg.id;
-    arg.id = ID(INVALID);
+    arg.id = ID::Invalid();
 }
 
 template <class T> UID<T>::~UID() { gid.Release(id); }
@@ -74,7 +65,7 @@ template <class T> UID<T>& UID<T>::operator=(UID&& arg) noexcept {
     if (this != &arg) {
         gid.Release(id);
         id     = arg.id;
-        arg.id = ID(INVALID);
+        arg.id = ID::Invalid();
     }
     return *this;
 }
@@ -89,14 +80,16 @@ ID::Manager::~Manager() { terminated = true; }
 
 ID ID::Manager::Generate() {
     if (terminated) {
-        return ID(INVALID);
+        return ID::Invalid();
     }
 
     if (cache.empty()) {
-        if (next == INVALID) {
-            return ID(INVALID);
-        } else
+        if (next == ECode::INVALID_ID) {
+            return ID::Invalid();
+        }
+        else {
             return ID{next++};
+        }
     }
 
     Value id = cache.top();
@@ -113,7 +106,7 @@ void ID::Manager::Release(ID id) {
         throw std::runtime_error("Disallowed or duplicate ID.");
     }
 
-    if (id == INVALID) {
+    if (id == ECode::INVALID_ID) {
         return;
     }
 
@@ -142,115 +135,6 @@ ID ID::Manager::Preview() const {
     }
     return ID(next);
 }
-
-size_t ID::Set::Search(ID id) {
-    return Search(id, 0, container.size());
-}
-
-size_t ID::Set::Search(ID id, size_t begin, size_t end) {
-    std::vector<ID>::iterator itr = std::lower_bound(container.begin() + begin, container.begin() + end, id);
-    if (itr != container.end() && *itr == id) {
-        return std::distance(container.begin(), itr);
-    }
-    return container.size(); // induce to out of range
-}
-
-void ID::Set::Sort() {
-    if (begin != end) {
-        std::sort(&container[0] + begin, &container[0] + end);
-    }
-    begin = end = (container.size() - 1);
-}
-
-bool ID::Set::Insert(ID arg) {
-    // insert
-    container.push_back(arg);
-
-    // sorted
-    if (begin == end) {
-        if (arg < container[end]) {
-            end = container.size() - 1;
-        }
-    }
-
-    // unsorted
-    else {
-        // smaller push back, find min
-        if (arg < max) {
-            end = container.size() -1;
-            while (begin != 0 && arg < container[begin]) {
-                --begin;
-            }
-        }
-    }
-
-    if (arg > max) {
-        max = arg;
-    }
-    return true;
-}
-
-bool ID::Set::Erase(ID id) {
-    if (!id) {
-        return false;
-    }
-    size_t index = container.size(); // invlaid
-    size_t last = index - 1;        // last
-
-    // unsorted
-    if (begin != end) {
-        // out of sort range
-        if (begin != 0 && id < container[begin]) {
-            index = Search(id, 0, begin + 1);
-        }
-
-        // out of sort range
-        else if (end != last && container[end] > id) {
-            index = Search(id, end, index);
-        }
-
-        else Sort();
-    }
-
-    // sorted
-    if (begin == end) {
-        // last == max
-        if (container[last] == id) {
-            index = last;
-            if (last) max = container[last - 1];
-            else max = ID::Invalid();
-        }
-        else index = Search(id);
-    }
-
-    // delete
-    if (index == container.size()) {
-        return false;
-    }
-
-    container[index] = container[last]; // move
-    container.resize(last);             // delete
-
-    // move position
-    if (index < begin) {
-        begin = index;
-    }
-    return true;
-}
-
-size_t ID::Set::Size() {
-    return container.size();
-}
-
-ID ID::Set::operator[](size_t index) {
-    if (index >= container.size()) {
-        return ID::Invalid();
-    }
-    Sort();
-
-    return container[index];
-}
-
 
 template <typename T> Identifier<T>::Identifier() : id(false) {}
 

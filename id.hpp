@@ -1,9 +1,12 @@
 #ifndef LWE_ID_HPP
 #define LWE_ID_HPP
 
-#include <algorithm>
-#include <stdexcept>
+#include <functional>
+#include <optional>
 #include <queue>
+#include <stdexcept>
+
+#include "config.h"
 
 // default id
 struct ID {
@@ -11,30 +14,27 @@ public:
     using Value = size_t;
 
 public:
-    static constexpr Value INVALID = 0;
-    static ID              Invalid();
+    static ID Invalid();
 
 public:
-    explicit ID(Value = INVALID);
+    explicit ID(Value = ECode::INVALID_ID);
     ID(const ID&);
     ID& operator=(const ID&);
     operator Value() const;
-
-public:
-    ID& operator++();
-    ID& operator--();
-    ID  operator++(int);
-    ID  operator--(int);
 
 private:
     Value value;
 
 public:
+    struct Hash {
+        uint64_t operator()(ID id) const;
+    };
+
+public:
     class Manager {
     public:
-        using Value                    = ID::Value;
-        using Cache                    = std::priority_queue<Value>;
-        static constexpr Value INVALID = ID::INVALID;
+        using Value = ID::Value;
+        using Cache = std::priority_queue<Value>;
 
     public:
         ~Manager();
@@ -50,34 +50,14 @@ public:
         bool  terminated = false;
     };
 
-public:
-    class Set {
-    private:
-        void   Sort();
-        size_t Search(ID);
-        size_t Search(ID, size_t, size_t);
-
-    public:
-        bool   Insert(ID);
-        bool   Erase(ID);
-        size_t Size();
-
-    public:
-        ID operator[](size_t);
-
-    private:
-        std::vector<ID> container;
-        size_t          begin = 0; // sort begin position
-        size_t          end   = 0; // sort end postion;
-        Value           max   = INVALID;
-    };
+private:
+    static std::vector<std::optional<uint64_t>> hashed;
 };
 
 // unique id
 template <class T = void> class UID {
 public:
-    using Value                    = ID::Value;
-    static constexpr Value INVALID = ID::INVALID;
+    using Value = ID::Value;
 
 private:
     UID(Value);

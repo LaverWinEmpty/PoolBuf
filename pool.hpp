@@ -6,13 +6,13 @@
 #include "allocator.hpp"
 #include "id.hpp"
 
-template <typename T, size_t POOL_CHUNK_COUNT = EConfig::MEMORY_ALLOCATE_DEFAULT,
-          size_t POOL_ALIGNMENT = EConfig::MEMORY_ALIGNMENT_DEFAULT>
+template <typename T, size_t POOL_CHUNK_COUNT = Config::MEMORY_ALLOCATE_DEFAULT,
+          size_t POOL_ALIGNMENT = Config::MEMORY_ALIGNMENT_DEFAULT>
 class Pool {
 public:
     struct Allocate {
         T _; // for new allocator instancea
-    }; 
+    };
 
 public:
     using Allocator = Allocator<Allocate, void, POOL_CHUNK_COUNT, POOL_ALIGNMENT>;
@@ -21,7 +21,7 @@ public:
     struct Item {
         friend class Pool;
         friend struct Iterator;
-        T* instance;
+        T* instance = nullptr;
 
     public:
         template <typename Arg> void OnCreate(Arg&&);
@@ -30,86 +30,112 @@ public:
     private:
         UniqueID id  = UniqueID::Unassigned();
         size_t   ref = 0;
-    };kf
-
-public:
-    class Flag {
-        Flag(ID);
-
-    public:
-        size_t arr, bit;
     };
 
-private:
-    static Allocator         allocator;
-    static std::vector<Item> container;
-    std::vector<ID>          converter;
-    std::vector<size_t>      checker;
+    struct Converter {
+        using Table = std::vector<ID>;
+        using Indexer = std::unordered_map<ID, size_t, ID::Hash>;
 
-private:
-    const Allocator& GetAllocator() const;
+        size_t operator()(ID);           // push
+        ID     operator()(size_t);       // pop
+        size_t operator[](ID) const;     // get
+        ID     operator[](size_t) const; // get
+
+        Table   table;
+        Indexer indexer;
+    } converter;
+
+public:
+    class Global {
+        friend class Pool;
+
+    public:
+        struct Iterator {
+            Iterator(Item*);
+            Iterator(const Iterator&);
+            Iterator& operator=(const Iterator&);
+            Iterator& operator++();
+            Iterator  operator++(int);
+            bool      operator==(const Iterator&) const;
+            bool      operator!=(const Iterator&) const;
+            bool      operator==(const Pool&) const;
+            bool      operator!=(const Pool&) const;
+            bool      operator==(const Pool* const) const;
+            bool      operator!=(const Pool* const) const;
+            T*        operator->();
+            T&        operator*();
+            operator ID() const;
+
+        private:
+            Item* item;
+        };
+
+    public:
+        static Iterator Begin();
+        static Iterator End();
+
+    public:
+        template <typename Arg> static ID Insert(Arg&&); // allocated
+        static bool                       Erase(ID);     // deallocate
+        static void                       Clear();       // clear no onwer instance
+
+    private:
+        static Item*                      Search(ID);    // get item, null: not found
+    };
 
 public:
     struct Iterator {
         friend class Pool;
-        Iterator(Item*);
+        Iterator(Pool*, size_t);
         Iterator(const Iterator&);
         Iterator& operator=(const Iterator&);
         Iterator& operator++();
         Iterator  operator++(int);
         bool      operator==(const Iterator&) const;
         bool      operator!=(const Iterator&) const;
-        bool      operator==(const Pool&) const;
-        bool      operator!=(const Pool&) const;
-        bool      operator==(const Pool* const) const;
-        bool      operator!=(const Pool* const) const;
         T*        operator->();
         T&        operator*();
         operator ID() const;
 
     private:
-        Item* item;
+        Pool*  ref;
+        size_t index;
     };
 
 public:
     ~Pool();
 
-private:
-    static Item* Search(ID); // get item, null: not found
+public:
+    template <typename Arg> ID Insert(Arg&&); // insert
+    size_t                     Take(ID);      // set ownership
 
 public:
-    static Iterator Begin();
-    static Iterator End();
+    bool Erase(ID); // erase
+    bool Lost(ID);  // reset ownership
+    void Leak();    // lost all
+    void Clear();   // clear
 
 public:
-    template <typename Arg> static ID Create(Arg&&); // allocated
-    template <typename Arg> ID        Insert(Arg&&); // insert
-    size_t                            Take(ID);      // set owner
+    T*     Find(ID);
+    bool   Exist(ID) const;
+    size_t Size() const;
+    size_t GetIndex(ID) const;
+    ID     GetID(size_t) const;
 
 public:
-    static bool Release(ID); // deallocate
-    bool        Erase(ID);   // erase
-    bool        Lost(ID);    // reset owner
-    void        Leak();      // lost all
-
-public:
-    T*     Find(ID);     // find, null: not found
-    size_t Size() const; // size
-    void   Sort();       // member id sort
-
-public:
-    bool        Exist(ID) const; // check owner
-    void        Clear();         // clear
-    static void Clean();         // clear no onwer instance
+    Iterator Begin();
+    Iterator End();
 
 public:
     T* operator[](ID);
     T* operator[](size_t);
 
+private:
+    static Allocator         allocator;
+    static std::vector<Item> container;
+
 public:
-    static Identifier<T> Extern(ID);
-    static bool          Intern(Identifier<T>&&);
-    bool                 Include(Identifier<T>&&);
+    static Global global;
 };
 
 #include "pool.ipp"
