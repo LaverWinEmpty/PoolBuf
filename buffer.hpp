@@ -29,8 +29,8 @@
  */
 
 template<size_t SIZE = EConfig::BUFFER_SIZE_DEFAULT, class Mtx = SpinLock,
-    size_t POOL_CHUNK_COUNT = EConfig::MEMORY_POOL_CHUNK_COUNT_DEFAULT,
-    size_t POOL_ALIGNMENT = EConfig::MEMORY_POOL_ALIGNMENT_DEFAULT
+    size_t POOL_CHUNK_COUNT = EConfig::MEMORY_ALLOCATE_DEFAULT,
+    size_t POOL_ALIGNMENT = EConfig::MEMORY_ALIGNMENT_DEFAULT
 >
 class Buffer {
 public:

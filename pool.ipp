@@ -87,7 +87,7 @@ template <typename T, size_t N, size_t A> void Pool<T, N, A>::Clear() {
 
 template <typename T, size_t N, size_t A> T* Pool<T, N, A>::Find(ID id) {
     Item* item = Global::Search(id);
-    if (item && item->id) {
+    if (item && item->id && converter[id] != ECode::INVALID_INDEX) {
         return item->instance;
     }
     return nullptr;
@@ -160,7 +160,7 @@ ID Pool<T, N, A>::Global::Insert(Arg&& arg) {
 }
 
 template <typename T, size_t N, size_t A> bool Pool<T, N, A>::Global::Erase(ID id) {
-    Item* item = Global::Search(id);
+    Item* item = Search(id);
     if (!item) {
         return false;
     }
@@ -168,6 +168,15 @@ template <typename T, size_t N, size_t A> bool Pool<T, N, A>::Global::Erase(ID i
 
     return true;
 }
+
+template <typename T, size_t N, size_t A> T* Pool<T, N, A>::Global::Find(ID id) {
+    Item* item = Search(id);
+    if (item && item->id) {
+        return item->instance;
+    }
+    return nullptr;
+}
+
 
 template <typename T, size_t N, size_t A> void Pool<T, N, A>::Global::Clear() {
     size_t loop = container.size();
@@ -190,18 +199,6 @@ template <typename T, size_t N, size_t A> auto Pool<T, N, A>::Global::Search(ID 
     return &container[id];
 }
 
-template <typename T, size_t N, size_t A> auto Pool<T, N, A>::Global::Begin() -> Iterator {
-    Item* item = &container[1];
-    for (size_t i = 1; i < container.size() && item->id == ECode::INVALID_ID; ++i) {
-        ++item;
-    }
-    return item;
-}
-
-template <typename T, size_t N, size_t A> auto Pool<T, N, A>::Global::End() -> Iterator {
-    return Iterator(&container[0] + container.size());
-}
-
 
 /*
     Converter
@@ -210,7 +207,7 @@ template <typename T, size_t N, size_t A> auto Pool<T, N, A>::Global::End() -> I
 template <typename T, size_t N, size_t A> size_t Pool<T, N, A>::Converter::operator()(ID id) {
     size_t last = table.size();
 
-    Converter::Indexer::const_iterator itr = indexer.find(id);
+    Indexer::const_iterator itr = indexer.find(id);
 
     // not exist or deleted id
     if (itr == indexer.end() || itr->second == ECode::INVALID_INDEX) {
@@ -246,7 +243,7 @@ ID Pool<T, N, A>::Converter::operator[](size_t index) const {
 }
 
 template <typename T, size_t N, size_t A> size_t Pool<T, N, A>::Converter::operator[](ID id) const {
-    Converter::Indexer::const_iterator itr = indexer.find(id);
+    Indexer::const_iterator itr = indexer.find(id);
     if (itr == indexer.end()) {
         return ECode::INVALID_INDEX;
     }

@@ -43,6 +43,8 @@ private:
 public:
     struct Global {
         friend class Pool;
+
+    public:
         struct Iterator {
             Iterator(Item*);
             Iterator(const Iterator&);
@@ -66,17 +68,18 @@ public:
     public:
         template <typename Arg> static ID Insert(Arg&&); // allocated
         static bool                       Erase(ID);     // deallocate
+        static T*                         Find(ID);      // get
         static void                       Clear();       // clear no onwer instance
         static Iterator                   Begin();
         static Iterator                   End();
 
     private:
-        static Item*                      Search(ID);    // get item, null: not found
+        static Item* Search(ID);    // get item, null: not found
     };
 
 public:
     struct Iterator {
-        friend class Pool;
+    public:
         Iterator(Pool*, size_t);
         Iterator(const Iterator&);
         Iterator& operator=(const Iterator&);
