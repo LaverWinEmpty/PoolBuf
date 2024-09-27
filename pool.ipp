@@ -139,18 +139,6 @@ template <typename T, size_t N, size_t A> T* Pool<T, N, A>::operator[](size_t in
     Global
 */
 
-template <typename T, size_t N, size_t A> auto Pool<T, N, A>::Global::Begin() -> Iterator {
-    Item* item = &container[1];
-    for (size_t i = 1; i < container.size() && item->id == ECode::INVALID_ID; ++i) {
-        ++item;
-    }
-    return item;
-}
-
-template <typename T, size_t N, size_t A> auto Pool<T, N, A>::Global::End() -> Iterator {
-    return Iterator(&container[0] + container.size());
-}
-
 template <typename T, size_t N, size_t A>
 template <typename Arg>
 ID Pool<T, N, A>::Global::Insert(Arg&& arg) {
@@ -200,6 +188,18 @@ template <typename T, size_t N, size_t A> auto Pool<T, N, A>::Global::Search(ID 
         return nullptr;
     }
     return &container[id];
+}
+
+template <typename T, size_t N, size_t A> auto Pool<T, N, A>::Global::Begin() -> Iterator {
+    Item* item = &container[1];
+    for (size_t i = 1; i < container.size() && item->id == ECode::INVALID_ID; ++i) {
+        ++item;
+    }
+    return item;
+}
+
+template <typename T, size_t N, size_t A> auto Pool<T, N, A>::Global::End() -> Iterator {
+    return Iterator(&container[0] + container.size());
 }
 
 

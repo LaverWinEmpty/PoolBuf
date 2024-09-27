@@ -9,33 +9,28 @@
 template <typename T, size_t POOL_CHUNK_COUNT = EConfig::MEMORY_ALLOCATE_DEFAULT,
           size_t POOL_ALIGNMENT = EConfig::MEMORY_ALIGNMENT_DEFAULT>
 class Pool {
-public:
     struct Allocate {
         T _; // for new allocator instancea
     };
 
 public:
     using Allocator = Allocator<Allocate, void, POOL_CHUNK_COUNT, POOL_ALIGNMENT>;
+    using Table     = std::vector<ID>;
+    using Indexer   = std::unordered_map<ID, size_t, ID::Hash>;
     using UniqueID  = UID<T>;
 
+private:
     struct Item {
-        friend class Pool;
-        friend struct Iterator;
-        T* instance = nullptr;
-
-    public:
         template <typename Arg> void OnCreate(Arg&&);
         void                         OnRelease();
 
-    private:
-        UniqueID id  = UniqueID::Unassigned();
-        size_t   ref = 0;
+        T*       instance = nullptr;
+        UniqueID id       = UniqueID::Unassigned();
+        size_t   ref      = 0;
     };
 
+private:
     struct Converter {
-        using Table = std::vector<ID>;
-        using Indexer = std::unordered_map<ID, size_t, ID::Hash>;
-
         size_t operator()(ID);           // push
         ID     operator()(size_t);       // pop
         size_t operator[](ID) const;     // get
@@ -46,10 +41,8 @@ public:
     } converter;
 
 public:
-    class Global {
+    struct Global {
         friend class Pool;
-
-    public:
         struct Iterator {
             Iterator(Item*);
             Iterator(const Iterator&);
@@ -71,13 +64,11 @@ public:
         };
 
     public:
-        static Iterator Begin();
-        static Iterator End();
-
-    public:
         template <typename Arg> static ID Insert(Arg&&); // allocated
         static bool                       Erase(ID);     // deallocate
         static void                       Clear();       // clear no onwer instance
+        static Iterator                   Begin();
+        static Iterator                   End();
 
     private:
         static Item*                      Search(ID);    // get item, null: not found
