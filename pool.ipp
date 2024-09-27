@@ -193,7 +193,7 @@ template <typename T, size_t N, size_t A> void Pool<T, N, A>::Global::Clear() {
 }
 
 template <typename T, size_t N, size_t A> auto Pool<T, N, A>::Global::Search(ID id) -> Item* {
-    if (id == ECode::INVALID_ID && id >= container.size()) {
+    if (id == ECode::INVALID_ID || id >= container.size()) {
         return nullptr;
     }
     return &container[id];
