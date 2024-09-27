@@ -6,8 +6,8 @@
 #include "allocator.hpp"
 #include "id.hpp"
 
-template <typename T, size_t POOL_CHUNK_COUNT = Config::MEMORY_ALLOCATE_DEFAULT,
-          size_t POOL_ALIGNMENT = Config::MEMORY_ALIGNMENT_DEFAULT>
+template <typename T, size_t POOL_CHUNK_COUNT = EConfig::MEMORY_ALLOCATE_DEFAULT,
+          size_t POOL_ALIGNMENT = EConfig::MEMORY_ALIGNMENT_DEFAULT>
 class Pool {
 public:
     struct Allocate {
